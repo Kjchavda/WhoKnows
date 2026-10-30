@@ -1,0 +1,11 @@
+text_extractor.py — read text and metadata from items, comments, and reviews.
+
+chunker.py — split text while preserving metadata.
+
+embedder.py — generate 384-dimensional embeddings.
+
+store.py — insert chunks and embeddings into Neon.
+
+pipeline.py — coordinate the entire process.
+
+main.py — run it.
