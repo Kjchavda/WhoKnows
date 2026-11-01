@@ -1,6 +1,6 @@
-from pipeline import EmbeddingPipeline
+from pipeline import Pipeline
 
 
 if __name__ == "__main__":
-    pipeline = EmbeddingPipeline()
-    pipeline.run()
+    pipeline = Pipeline()
+    pipeline.run(dry_run=False)
