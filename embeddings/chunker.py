@@ -53,7 +53,7 @@ record = {
     "text": "Redis stores data in memory. It supports multiple data structures."
 }
 
-chunker = Chunker()
-result = chunker.chunk_records([record])
+# chunker = Chunker()
+# result = chunker.chunk_records([record])
 
-print(result)
+# print(result)
