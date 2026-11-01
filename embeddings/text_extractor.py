@@ -22,9 +22,6 @@ class TextExtractor:
         rows = self.db.fetch_all(query)
         transformed_rows = []
 
-        # TODO: transform each row into the five-field
-        # record format, setting source to "item_body"
-        # and source_id to None.
 
         for row in rows:
             new_row = {

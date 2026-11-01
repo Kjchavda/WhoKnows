@@ -1,4 +1,4 @@
-from config import settings
+
 from db import Database
 
 
@@ -18,11 +18,11 @@ class Store:
                 author_id,
                 text,
                 embedding,
-                embedding_model
+                embedding_model,
+                chunk_index
             )
-            VALUES (
-                %s, %s, %s, %s, %s, %s, %s
-            );
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT DO NOTHING;
         """
 
         rows = [
@@ -34,6 +34,7 @@ class Store:
                 record["text"],
                 record["embedding"],
                 record["embedding_model"],
+                record["chunk_index"],
             )
             for record in records
         ]

@@ -1,5 +1,0 @@
-store.py — insert chunks and embeddings into Neon.
-
-pipeline.py — coordinate the entire process.
-
-main.py — run it.
