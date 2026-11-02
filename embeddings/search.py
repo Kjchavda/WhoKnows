@@ -1,4 +1,4 @@
-
+from ranker import DeveloperRanker
 from db import Database
 from embedder import Embedder
 
@@ -49,9 +49,12 @@ if __name__ == "__main__":
     try:
         db.open()
         searcher = SemanticSearch(db)
+        ranker = DeveloperRanker()
 
         query = input("Search GitHub knowledge: ")
-        results = searcher.search(query, limit=10)
+        results = searcher.search(query, limit=100)
+
+        ranked = ranker.rank(results)
 
         for rank, result in enumerate(results, start=1):
             print(f"\n--- Result {rank} ---")
@@ -60,6 +63,17 @@ if __name__ == "__main__":
             print(f"Author ID: {result['author_id']}")
             print(f"Cosine distance: {result['distance']:.4f}")
             print(f"Text: {result['text'][:500]}")
+
+        for position, developer in enumerate(ranked, start=1):
+            print(f"\nRank: {position}")
+            print(f"Developer ID: {developer['author_id']}")
+            print(f"Score: {developer['score']:.4f}")
+            print(f"Average similarity: {developer['average_similarity']:.4f}")
+            print(f"Contributions: {developer['contribution_count']}")
+
+            print("Best evidence:")
+            for evidence in developer["evidence"]:
+                print("-", evidence["text"][:200])
 
     finally:
         db.close()
