@@ -56,13 +56,21 @@ class DeveloperRanker:
                 for contribution in contributions.values()
             ]
 
+            # Scoring part
             contribution_count = len(contribution_scores)
+
+            breadth = set()
+
+            for contribution in contributions.values():
+                breadth.add(contribution["result"]["item_id"])
+
+            breadth_count = len(breadth)
 
             average_relevance = (
                 sum(contribution_scores) / contribution_count
             )
 
-            volume_factor = math.log1p(contribution_count)
+            volume_factor = 0.5*(math.log1p(contribution_count)+math.log1p(breadth_count))
 
             score = average_relevance * volume_factor
 
@@ -78,6 +86,7 @@ class DeveloperRanker:
                 "score": score,
                 "average_relevance": average_relevance,
                 "contribution_count": contribution_count,
+                "breadth_count": breadth_count,
                 "evidence": [
                     item["result"] for item in evidence[:3]
                 ],

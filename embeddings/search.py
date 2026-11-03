@@ -107,6 +107,7 @@ if __name__ == "__main__":
             print(f"Score: {developer['score']:.4f}")
             print(f"Average relevance: {developer['average_relevance']:.4f}")
             print(f"Distinct contributions: {developer['contribution_count']}")
+            print(f"Breadth count: {developer['breadth_count']}")
 
             print("\nTOP EVIDENCE")
 
