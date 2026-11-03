@@ -9,46 +9,66 @@ class DeveloperRanker:
         if not search_results:
             return []
 
-        # Group search results by developer
-        developers = defaultdict(list)
+        # Group chunks by developer and original contribution.
+        developers = defaultdict(dict)
 
         for result in search_results:
             author_id = result["author_id"]
 
-            # Ignore contributions without an identified author
             if author_id is None:
                 continue
 
+            source = result["source"]
+            source_id = result["source_id"]
+
+            # Item bodies use item_id because source_id is NULL.
+            if source == "item_body":
+                contribution_id = result["item_id"]
+            else:
+                contribution_id = source_id
+
+            if contribution_id is None:
+                continue
+
+            contribution_key = (source, contribution_id)
+
             similarity = 1 - float(result["distance"])
 
-            developers[author_id].append({
-                "similarity": similarity,
-                "result": result,
-            })
+            existing = developers[author_id].get(contribution_key)
+
+            # Keep the most relevant chunk from this contribution.
+            if (
+                existing is None
+                or similarity > existing["similarity"]
+            ):
+                developers[author_id][contribution_key] = {
+                    "similarity": similarity,
+                    "result": result,
+                }
 
         ranked_developers = []
 
-        # Calculate a score for each developer
+        # Calculate one score per developer.
         for author_id, contributions in developers.items():
 
-            similarities = [
+            contribution_scores = [
                 contribution["similarity"]
-                for contribution in contributions
+                for contribution in contributions.values()
             ]
 
-            contribution_count = len(contributions)
+            contribution_count = len(contribution_scores)
 
-            average_similarity = (
-                sum(similarities) / contribution_count
+            average_relevance = (
+                sum(contribution_scores) / contribution_count
             )
 
             volume_factor = math.log1p(contribution_count)
 
-            score = average_similarity * volume_factor
+            score = average_relevance * volume_factor
 
-            # Keep the strongest matching contributions as evidence
+            # Sort distinct contributions by relevance.
             evidence = sorted(
-                contributions,
+                contributions.values(),
                 key=lambda x: x["similarity"],
                 reverse=True,
             )
@@ -56,14 +76,13 @@ class DeveloperRanker:
             ranked_developers.append({
                 "author_id": author_id,
                 "score": score,
-                "average_similarity": average_similarity,
+                "average_relevance": average_relevance,
                 "contribution_count": contribution_count,
                 "evidence": [
                     item["result"] for item in evidence[:3]
                 ],
             })
 
-        # Highest score first
         ranked_developers.sort(
             key=lambda x: x["score"],
             reverse=True,

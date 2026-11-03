@@ -28,11 +28,44 @@ class SemanticSearch:
                 c.source_id,
                 c.author_id,
                 c.text,
-                c.embedding <=> %s::vector AS distance
+                c.embedding <=> %s::vector AS distance,
+
+                d.login AS developer_login,
+
+                i.number AS item_number,
+                i.kind AS item_kind,
+                i.title AS item_title,
+
+                r.full_name AS repository,
+
+                CASE
+                    WHEN i.kind = 'pr' THEN
+                        'https://github.com/' || r.full_name ||
+                        '/pull/' || i.number
+                    ELSE
+                        'https://github.com/' || r.full_name ||
+                        '/issues/' || i.number
+                END AS github_url
+
             FROM chunks AS c
+
+            JOIN items AS i
+                ON i.github_id = c.item_id
+
+            JOIN repositories AS r
+                ON r.github_id = i.repo_id
+
+            LEFT JOIN developers AS d
+                ON d.github_id = c.author_id
+
             WHERE c.embedding IS NOT NULL
+                AND COALESCE(LOWER(d.type), '') <> 'bot'
+                
+
             ORDER BY c.embedding <=> %s::vector
+
             LIMIT %s;
+
         """
 
         rows = self.db.fetch_all(
@@ -56,24 +89,45 @@ if __name__ == "__main__":
 
         ranked = ranker.rank(results)
 
-        for rank, result in enumerate(results, start=1):
-            print(f"\n--- Result {rank} ---")
-            print(f"Item ID: {result['item_id']}")
-            print(f"Source: {result['source']}")
-            print(f"Author ID: {result['author_id']}")
-            print(f"Cosine distance: {result['distance']:.4f}")
-            print(f"Text: {result['text'][:500]}")
+        source_names = {
+            "item_body": "Issue/PR description",
+            "issue_comment": "Issue comment",
+            "review_comment": "Review comment",
+            "review": "PR review",
+        }
 
-        for position, developer in enumerate(ranked, start=1):
-            print(f"\nRank: {position}")
+        for position, developer in enumerate(ranked[:5], start=1):
+
+            print("\n" + "=" * 80)
+            print(f"RANK #{position}")
+            print("=" * 80)
+
+            print(f"Developer: @{developer['evidence'][0]['developer_login']}")
             print(f"Developer ID: {developer['author_id']}")
             print(f"Score: {developer['score']:.4f}")
-            print(f"Average similarity: {developer['average_similarity']:.4f}")
-            print(f"Contributions: {developer['contribution_count']}")
+            print(f"Average relevance: {developer['average_relevance']:.4f}")
+            print(f"Distinct contributions: {developer['contribution_count']}")
 
-            print("Best evidence:")
-            for evidence in developer["evidence"]:
-                print("-", evidence["text"][:200])
+            print("\nTOP EVIDENCE")
+
+            for index, evidence in enumerate(developer["evidence"], start=1):
+
+                contribution_type = source_names.get(
+                    evidence["source"],
+                    evidence["source"]
+                )
+
+                print(f"\n  Evidence #{index}")
+                print(f"  Type: {contribution_type}")
+                print(
+                    f"  Parent: {evidence['item_kind'].upper()} "
+                    f"#{evidence['item_number']}"
+                )
+                print(f"  Title: {evidence['item_title']}")
+                print(f"  Author: @{evidence['developer_login']}")
+                print(f"  Similarity: {1 - float(evidence['distance']):.4f}")
+                print(f"  GitHub: {evidence['github_url']}")
+                print(f"  Text: {evidence['text']}")
 
     finally:
         db.close()
