@@ -1,6 +1,6 @@
-from ranker import DeveloperRanker
-from db import Database
-from embedder import Embedder
+from embeddings.ranker import DeveloperRanker
+from embeddings.db import Database
+from embeddings.embedder import Embedder
 
 
 class SemanticSearch:

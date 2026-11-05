@@ -1,7 +1,7 @@
 
 import math
 
-from ranker import DeveloperRanker
+from embeddings.ranker import DeveloperRanker
 
 
 def make_result(author_id, item_id, source, source_id, distance):

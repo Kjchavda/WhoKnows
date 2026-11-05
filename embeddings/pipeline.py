@@ -1,10 +1,10 @@
 
-from config import settings
-from db import Database
-from text_extractor import TextExtractor
-from chunker import Chunker
-from embedder import Embedder
-from store import Store
+from embeddings.config import settings
+from embeddings.db import Database
+from embeddings.text_extractor import TextExtractor
+from embeddings.chunker import Chunker
+from embeddings.embedder import Embedder
+from embeddings.store import Store
 
 
 class Pipeline:

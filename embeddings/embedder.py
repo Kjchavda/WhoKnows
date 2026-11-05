@@ -1,6 +1,6 @@
 
 from sentence_transformers import SentenceTransformer
-from config import settings
+from embeddings.config import settings
 
 
 class Embedder:

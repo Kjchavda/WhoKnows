@@ -1,4 +1,4 @@
-from pipeline import Pipeline
+from embeddings.pipeline import Pipeline
 
 
 if __name__ == "__main__":

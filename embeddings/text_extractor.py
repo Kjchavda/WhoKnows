@@ -1,4 +1,4 @@
-from db import Database
+from embeddings.db import Database
 class TextExtractor:
     def __init__(self, db: Database):
         self.db = db
