@@ -1,4 +1,7 @@
 
+from graph.ranker import GraphRanker
+
+
 class Builder:
     def __init__(self) -> None:
         self.graph = {}
@@ -50,6 +53,32 @@ class Builder:
 
         return list(files)
 
+    def get_developer_stats(self, developer_id):
+        dev_node = "dev_" + str(developer_id)
+
+        prs = self.graph.get(dev_node, [])
+
+        files = set()
+        for pr in prs:
+            files.update(self.graph[pr])
+
+        return {
+            "developer_id": developer_id,
+            "total_prs": len(prs),
+            "total_files": len(files)
+        }
+
+    def get_devs_for_prs(self, pr_ids):
+        developers = set()
+
+        for pr_id in pr_ids:
+            pr_node = "pr_" + str(pr_id)
+
+            devs = self.reverse_graph.get(pr_node, [])
+            developers.update(devs)
+
+        return developers
+
 
 if __name__ == "__main__":
     rows = [
@@ -72,3 +101,23 @@ if __name__ == "__main__":
 
     print("\nFiles modified by developer 101:")
     print(builder.get_files_for_dev(101))
+
+    print(builder.get_developer_stats(101))
+
+    
+    ranker = GraphRanker(builder)
+
+    relevant_files = {"file_20", "file_21"}
+
+    print(ranker.get_developer_metrics(101, relevant_files))
+    print(ranker.get_developer_metrics(102, relevant_files))
+
+    developer_ids = [101, 102]
+
+    results = ranker.rank(
+        relevant_files={"file_20", "file_21"},
+        developer_ids=developer_ids
+    )
+
+    for result in results:
+        print(result)
