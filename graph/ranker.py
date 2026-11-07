@@ -1,14 +1,26 @@
+
 import math
 
-class GraphRanker:
 
+class GraphRanker:
     def __init__(self, builder):
         self.builder = builder
 
-    def get_developer_metrics(self, developer_id, relevant_files, retrieved_pr_ids):
+    def get_developer_metrics(
+        self,
+        developer_id,
+        relevant_files,
+        retrieved_pr_ids
+    ):
         dev_node = "dev_" + str(developer_id)
 
+        # Only PRs created by this developer.
         prs = self.builder.graph.get(dev_node, [])
+
+        retrieved_pr_nodes = {
+            "pr_" + str(pr_id)
+            for pr_id in retrieved_pr_ids
+        }
 
         direct_prs = set()
         historical_related_prs = set()
@@ -16,17 +28,14 @@ class GraphRanker:
         covered_files = set()
 
         for pr in prs:
-            files = set(self.builder.graph[pr])
-
+            files = set(self.builder.graph.get(pr, []))
             developer_files.update(files)
 
             matched_files = files.intersection(relevant_files)
 
-            # PR was directly retrieved by semantic search
-            if pr in {"pr_" + str(pr_id) for pr_id in retrieved_pr_ids}:
+            if pr in retrieved_pr_nodes:
                 direct_prs.add(pr)
 
-            # Historical PR touching at least one relevant file
             elif matched_files:
                 historical_related_prs.add(pr)
 
@@ -46,8 +55,13 @@ class GraphRanker:
             "coverage": coverage
         }
 
-    def rank(self, relevant_files, developer_ids, retrieved_pr_ids, semantic_scores):
-
+    def rank(
+        self,
+        relevant_files,
+        developer_ids,
+        retrieved_pr_ids,
+        semantic_scores
+    ):
         metrics = [
             self.get_developer_metrics(
                 dev_id,
@@ -57,35 +71,44 @@ class GraphRanker:
             for dev_id in developer_ids
         ]
 
-        # Add semantic relevance
-        for m in metrics:
-            distances = semantic_scores.get(m["developer_id"], [])
+        # Semantic scores contain one best similarity per
+        # original contribution, grouped by its actual author.
+        for metric in metrics:
+            contributions = semantic_scores.get(
+                metric["developer_id"],
+                {}
+            )
 
-            m["semantic_pr_count"] = len(distances)
+            similarities = list(contributions.values())
 
-            m["semantic_relevance"] = (
-                sum(1 - distance for distance in distances) / len(distances)
-                if distances else 0
+            metric["semantic_contribution_count"] = len(similarities)
+
+            metric["semantic_relevance"] = (
+                sum(similarities) / len(similarities)
+                if similarities else 0
             )
 
         max_historical_prs = max(
-            (m["historical_related_pr_count"] for m in metrics),
+            (
+                metric["historical_related_pr_count"]
+                for metric in metrics
+            ),
             default=0
         )
 
         results = []
 
-        for m in metrics:
-
+        for metric in metrics:
             historical_depth = (
-                math.log1p(m["historical_related_pr_count"])
+                math.log1p(metric["historical_related_pr_count"])
                 / math.log1p(max_historical_prs)
                 if max_historical_prs > 0 else 0
             )
 
-            semantic = m["semantic_relevance"]
-            coverage = m["coverage"]
+            semantic = metric["semantic_relevance"]
+            coverage = metric["coverage"]
 
+            # Preserve the existing scoring formula.
             score = (
                 0.40 * semantic
                 + 0.35 * historical_depth
@@ -93,31 +116,13 @@ class GraphRanker:
             )
 
             results.append({
-                **m,
+                **metric,
                 "historical_depth": historical_depth,
                 "score": score
             })
 
         return sorted(
             results,
-            key=lambda x: x["score"],
+            key=lambda result: result["score"],
             reverse=True
         )
-
-    def rank_from_prs(self, pr_ids, semantic_scores):
-        developers = self.builder.get_devs_for_prs(pr_ids)
-
-        relevant_files = set()
-
-        for pr_id in pr_ids:
-            pr_node = "pr_" + str(pr_id)
-            relevant_files.update(
-                self.builder.graph.get(pr_node, [])
-            )
-
-        developer_ids = [
-            int(dev.replace("dev_", ""))
-            for dev in developers
-        ]
-
-        return self.rank(relevant_files, developer_ids, set(pr_ids), semantic_scores)

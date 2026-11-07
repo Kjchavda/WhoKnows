@@ -1,8 +1,20 @@
+
+from collections import Counter
+
 from embeddings.db import Database
 from embeddings.search import SemanticSearch
+
 from graph.builder import Builder
 from graph.ranker import GraphRanker
 from graph.data_loader import GraphDataLoader
+
+
+SOURCE_NAMES = {
+    "item_body": "PR/Issue description",
+    "issue_comment": "Issue comment",
+    "review_comment": "Review comment",
+    "review": "PR review",
+}
 
 
 def main():
@@ -11,124 +23,211 @@ def main():
     try:
         db.open()
 
-        # -----------------------------------------
         # 1. Semantic search
-        # -----------------------------------------
-        query = "Redis connection pooling"
+        query = input("\nSearch GitHub knowledge: ").strip()
+
+        if not query:
+            print("Search query cannot be empty.")
+            return
 
         searcher = SemanticSearch(db)
         results = searcher.search(query, limit=100)
 
-        pr_results = [
-            row for row in results
-            if row["item_kind"] == "pr"
-        ]
-
-        pr_ids = {
-            row["item_id"]
-            for row in pr_results
-        }
+        if not results:
+            print("No relevant contributions found.")
+            return
 
         print(f"\nSearch query: {query}")
-        print(f"Retrieved PRs: {len(pr_ids)}")
+        print(f"Retrieved semantic chunks: {len(results)}")
 
-        # -----------------------------------------
-        # 2. Inspect semantic relevance
-        # -----------------------------------------
-        print("\n" + "=" * 70)
-        print("SEMANTICALLY RETRIEVED PULL REQUESTS")
-        print("=" * 70)
-
-        # Multiple chunks can belong to the same PR.
-        # Keep the best (lowest distance) result per PR.
-        best_pr_results = {}
-
-        for row in pr_results:
-            pr_id = row["item_id"]
-
-            if (
-                pr_id not in best_pr_results
-                or row["distance"] < best_pr_results[pr_id]["distance"]
-            ):
-                best_pr_results[pr_id] = row
-
-        sorted_pr_results = sorted(
-            best_pr_results.values(),
-            key=lambda row: row["distance"]
+        # 2. Inspect contribution source distribution
+        source_counts = Counter(
+            row["source"] for row in results
         )
 
-        semantic_scores = {}
+        print("\nContribution source breakdown:")
 
-        for pr_id, row in best_pr_results.items():
+        for source, count in source_counts.items():
+            print(f"{SOURCE_NAMES.get(source, source)}: {count}")
+
+        # 3. Group semantic contributions by their actual author.
+        # Keep only the best matching chunk per original contribution.
+
+        semantic_contributions = {}
+
+        for row in results:
             developer_id = row["author_id"]
-            distance = row["distance"]
 
-            if developer_id not in semantic_scores:
-                semantic_scores[developer_id] = []
+            if developer_id is None:
+                continue
 
-            semantic_scores[developer_id].append(distance)
+            if row["source"] == "item_body":
+                contribution_id = row["item_id"]
+            else:
+                contribution_id = row["source_id"]
 
-        print("\nSemantic scores by developer:")
+            if contribution_id is None:
+                continue
 
-        for developer_id, distances in semantic_scores.items():
-            print(
-                f"Developer {developer_id}: "
-                f"PRs={len(distances)}, "
-                f"Best distance={min(distances):.4f}"
+            contribution_key = (
+                row["source"],
+                contribution_id
             )
 
-        for position, row in enumerate(sorted_pr_results, start=1):
-            print(f"\nPR #{position}")
-            print(f"Developer: {row['developer_login']} (ID: {row['author_id']})")
-            print(f"PR Number: {row['item_number']}")
-            print(f"Title: {row['item_title']}")
-            print(f"Semantic Distance: {row['distance']:.4f}")
-            print(f"GitHub URL: {row['github_url']}")
+            similarity = 1 - float(row["distance"])
 
-        # -----------------------------------------
-        # 3. Load graph data
-        # -----------------------------------------
+            developer_contributions = semantic_contributions.setdefault(
+                developer_id, {}
+            )
+
+            existing = developer_contributions.get(contribution_key)
+
+            if (
+                existing is None
+                or similarity > existing["similarity"]
+            ):
+                developer_contributions[contribution_key] = {
+                    "similarity": similarity,
+                    "row": row
+                }
+
+        semantic_scores = {
+            developer_id: {
+                key: contribution["similarity"]
+                for key, contribution in contributions.items()
+            }
+            for developer_id, contributions in semantic_contributions.items()
+        }
+
+        semantic_developers = set(semantic_scores.keys())
+
+        # 4. Identify PRs retrieved by semantic search.
+        retrieved_pr_ids = {
+            row["item_id"]
+            for row in results
+            if row["item_kind"] == "pr"
+        }
+
+        print(f"\nSemantic developers: {len(semantic_developers)}")
+        print(f"Retrieved PRs: {len(retrieved_pr_ids)}")
+
+        # 5. Build implementation graph.
         loader = GraphDataLoader(db)
         graph_rows = loader.get_graph_data()
 
         builder = Builder()
         builder.build_graph(graph_rows)
 
-        print("\n" + "=" * 70)
-        print("GRAPH STATISTICS")
-        print("=" * 70)
-        print(f"Graph relationships: {len(graph_rows)}")
-        print(f"Graph nodes: {len(builder.graph)}")
+        # 6. Find files modified by retrieved PRs.
+        relevant_files = set()
 
-        direct_developers = builder.get_devs_for_prs(pr_ids)
+        for pr_id in retrieved_pr_ids:
+            pr_node = "pr_" + str(pr_id)
 
-        print(f"Direct PR authors: {len(direct_developers)}")
+            relevant_files.update(
+                builder.graph.get(pr_node, [])
+            )
 
-        # -----------------------------------------
-        # 4. Graph ranking
-        # -----------------------------------------
+        print(f"Relevant files: {len(relevant_files)}")
+
+        # 7. Combined developer ranking.
         ranker = GraphRanker(builder)
-        ranked = ranker.rank_from_prs(pr_ids, semantic_scores)
 
-        print("\n" + "=" * 70)
-        print("DEVELOPER RANKINGS")
-        print("=" * 70)
+        ranked = ranker.rank(
+            relevant_files=relevant_files,
+            developer_ids=semantic_developers,
+            retrieved_pr_ids=retrieved_pr_ids,
+            semantic_scores=semantic_scores
+        )
+
+        # 8. Display final results with usernames and evidence.
+        print("\n" + "=" * 90)
+        print("WHO KNOWS: " + query)
+        print("=" * 90)
 
         for position, developer in enumerate(ranked[:10], start=1):
-            print(f"\nRANK #{position}")
-            print(f"Developer ID: {developer['developer_id']}")
-            print(f"Score: {developer['score']:.4f}")
-            print(f"Direct PRs: {developer['direct_pr_count']}")
+            developer_id = developer["developer_id"]
+
+            contributions = semantic_contributions.get(
+                developer_id, {}
+            )
+
+            evidence = sorted(
+                contributions.values(),
+                key=lambda item: item["similarity"],
+                reverse=True
+            )
+
+            # Retrieve username from the actual contribution record.
+            username = None
+
+            if evidence:
+                username = evidence[0]["row"]["developer_login"]
+
+            print("\n" + "-" * 90)
+            print(f"RANK #{position}")
+            print("-" * 90)
+
             print(
-                "Historical related PRs: "
+                f"Developer: @{username}"
+                if username
+                else f"Developer ID: {developer_id}"
+            )
+
+            print(f"GitHub ID: {developer_id}")
+            print(f"Final score: {developer['score']:.4f}")
+            print(
+                f"Semantic relevance: "
+                f"{developer['semantic_relevance']:.4f}"
+            )
+            print(
+                f"Semantic contributions: "
+                f"{developer['semantic_contribution_count']}"
+            )
+            print(
+                f"Direct PRs: {developer['direct_pr_count']}"
+            )
+            print(
+                f"Historical related PRs: "
                 f"{developer['historical_related_pr_count']}"
             )
-            print(f"Total files: {developer['total_files']}")
-            print(f"Covered files: {developer['covered_files']}")
-            print(f"Coverage: {developer['coverage']:.4f}")
-            print(f"Semantic PRs: {developer['semantic_pr_count']}")
-            print(f"Semantic relevance: {developer['semantic_relevance']:.4f}")
-            print(f"Historical depth: {developer['historical_depth']:.4f}")
+            print(
+                f"File coverage: "
+                f"{developer['covered_files']}/"
+                f"{len(relevant_files)} "
+                f"({developer['coverage']:.2%})"
+            )
+
+            print("\nTOP CONTRIBUTION EVIDENCE")
+
+            for index, contribution in enumerate(evidence[:3], start=1):
+                row = contribution["row"]
+
+                source_name = SOURCE_NAMES.get(
+                    row["source"],
+                    row["source"]
+                )
+
+                print(f"\n  Evidence #{index}")
+                print(f"  Type: {source_name}")
+
+                print(
+                    f"  Parent: {row['item_kind'].upper()} "
+                    f"#{row['item_number']}"
+                )
+
+                print(f"  Title: {row['item_title']}")
+                print(
+                    f"  Similarity: "
+                    f"{contribution['similarity']:.4f}"
+                )
+                print(f"  GitHub: {row['github_url']}")
+
+                text = row["text"] or ""
+                print(f"  Text: {text[:500]}")
+
+                if len(text) > 500:
+                    print("  ...")
 
     finally:
         db.close()
