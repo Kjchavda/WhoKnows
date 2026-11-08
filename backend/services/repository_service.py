@@ -15,7 +15,7 @@ class RepositoryService:
     def list_repositories(self):
         return self.db.fetch_all(
             """
-            SELECT id, owner, name
+            SELECT github_id, owner, name
             FROM repositories
             ORDER BY owner, name
             """
@@ -27,9 +27,9 @@ class RepositoryService:
 
         return self.db.fetch_one(
             """
-            SELECT id, owner, name
+            SELECT github_id, owner, name
             FROM repositories
-            WHERE id = %s
+            WHERE github_id = %s
             """,
             (repo_id,),
         )
