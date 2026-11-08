@@ -1,5 +1,6 @@
 
-from backend.config import settings
+from backend.config import settings as dbsettings
+from embeddings.config import settings as embeddingsettings
 from backend.db import Database
 from embeddings.text_extractor import TextExtractor
 from embeddings.chunker import Chunker
@@ -33,7 +34,7 @@ class Pipeline:
             # 1. Extract one batch from the selected repository
             records = extract_method(
                 repo_id=repo_id,
-                limit=settings.extraction_batch_size,
+                limit=embeddingsettings.extraction_batch_size,
                 offset=offset,
             )
 
@@ -55,10 +56,10 @@ class Pipeline:
                 for start in range(
                     0,
                     len(embedded_chunks),
-                    settings.database_batch_size,
+                    dbsettings.database_batch_size,
                 ):
                     batch = embedded_chunks[
-                        start:start + settings.database_batch_size
+                        start:start + dbsettings.database_batch_size
                     ]
 
                     self.store.store_records(batch)

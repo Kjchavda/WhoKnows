@@ -1,17 +1,18 @@
 
 from sentence_transformers import SentenceTransformer
-from backend.config import settings
+from backend.config import settings as dbsettings
+from embeddings.config import settings as embeddingsettings
 
 
 class Embedder:
     def __init__(self):
         # Load the model once and reuse it for every batch.
-        self.model = SentenceTransformer(settings.embedding_model)
+        self.model = SentenceTransformer(embeddingsettings.embedding_model)
 
     def embed_records(self, records):
         embedded_records = []
 
-        batch_size = settings.embedding_batch_size
+        batch_size = embeddingsettings.embedding_batch_size
 
         for start in range(0, len(records), batch_size):
             batch = records[start : start + batch_size]
@@ -26,7 +27,7 @@ class Embedder:
             for record, embedding in zip(batch, embeddings):
                 embedded_record = record.copy()
                 embedded_record["embedding"] = embedding.tolist()
-                embedded_record["embedding_model"] = settings.embedding_model
+                embedded_record["embedding_model"] = embeddingsettings.embedding_model
 
                 embedded_records.append(embedded_record)
 
