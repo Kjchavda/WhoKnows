@@ -212,7 +212,7 @@ def get_state(conn: psycopg.Connection, repo_id: int, resource: str) -> datetime
     row = conn.execute(
         "SELECT since FROM crawl_state WHERE repo_id=%s AND resource=%s", (repo_id, resource)
     ).fetchone()
-    return row[0] if row else None
+    return row["since"] if row else None
 
 def save_state(cur: psycopg.Cursor, repo_id: int, resource: str, stamp: datetime) -> None:
     cur.execute(
@@ -392,8 +392,8 @@ def crawl_items(db: Database, gh: GitHub, repo_id: int, owner: str, name: str, m
 
 def load_item_map(db: Database, repo_id: int) -> dict[int, int]:
     return db.run_tx(lambda conn: {
-        int(number): int(github_id)
-        for github_id, number in conn.execute(
+        int(row["number"]): int(row["github_id"])
+        for row in conn.execute(
             "SELECT github_id, number FROM items WHERE repo_id=%s", (repo_id,)
         ).fetchall()
     })
@@ -406,7 +406,8 @@ def upsert_file(cur: psycopg.Cursor, repo_id: int, path: str) -> int:
            RETURNING id""",
         (repo_id, path),
     )
-    return int(cur.fetchone()[0])
+    row = cur.fetchone()
+    return int(row["id"])
 
 def crawl_comment_resource(
     db: Database, gh: GitHub, repo_id: int, owner: str, name: str,
@@ -481,10 +482,11 @@ def crawl_details(db: Database, gh: GitHub, repo_id: int, owner: str, name: str,
         rows = rows[:max_prs]
     log(f"PR details: {len(rows)} pending PR(s){' (limited by --max-prs)' if max_prs is not None else ''}.")
 
-    for index, (pr_id, number, _updated_at) in enumerate(rows, start=1):
+    for index, row in enumerate(rows, start=1):
+        pr_id = row["github_id"]
+        number = row["number"]
+        
         base = f"{API_URL}/repos/{owner}/{name}/pulls/{number}"
-        # The issues-list pull_request object commonly contains links only, not merged_at.
-        # Fetch the PR resource here so merged status is accurate without a second pass over every PR.
         pull_data, _pull_response = gh.get_json(base)
         # Fetch outside the DB transaction; the transaction below makes all fetched details atomic.
         reviews: list[dict] = []
