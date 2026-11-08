@@ -2,7 +2,7 @@ class GraphDataLoader:
     def __init__(self, db):
         self.db = db
 
-    def get_graph_data(self):
+    def get_graph_data(self, repo_id):
         query = """
             SELECT DISTINCT
                 i.author_id AS developer_id,
@@ -12,7 +12,8 @@ class GraphDataLoader:
             JOIN pr_files pf
                 ON pf.item_id = i.github_id
             WHERE i.kind = 'pr'
-              AND i.author_id IS NOT NULL;
+                AND i.author_id IS NOT NULL
+                AND i.repo_id = %s;
         """
 
-        return self.db.fetch_all(query)
+        return self.db.fetch_all(query, (repo_id,))

@@ -8,7 +8,7 @@ class SemanticSearch:
         self.db = db
         self.embedder = Embedder()
 
-    def search(self, query: str, limit: int = 10):
+    def search(self, query: str, repo_id: int, limit: int = 10):
         if not query or not query.strip():
             raise ValueError("Search query cannot be empty.")
 
@@ -60,6 +60,7 @@ class SemanticSearch:
 
             WHERE c.embedding IS NOT NULL
                 AND COALESCE(LOWER(d.type), '') <> 'bot'
+                AND i.repo_id = %s
                 
 
             ORDER BY c.embedding <=> %s::vector
@@ -70,65 +71,7 @@ class SemanticSearch:
 
         rows = self.db.fetch_all(
             sql,
-            (query_embedding, query_embedding, limit),
+            (query_embedding, repo_id, query_embedding, limit),
         )
 
         return rows
-
-
-if __name__ == "__main__":
-    db = Database()
-
-    try:
-        db.open()
-        searcher = SemanticSearch(db)
-        ranker = DeveloperRanker()
-
-        query = input("Search GitHub knowledge: ")
-        results = searcher.search(query, limit=100)
-
-        ranked = ranker.rank(results)
-
-        source_names = {
-            "item_body": "Issue/PR description",
-            "issue_comment": "Issue comment",
-            "review_comment": "Review comment",
-            "review": "PR review",
-        }
-
-        for position, developer in enumerate(ranked[:5], start=1):
-
-            print("\n" + "=" * 80)
-            print(f"RANK #{position}")
-            print("=" * 80)
-
-            print(f"Developer: @{developer['evidence'][0]['developer_login']}")
-            print(f"Developer ID: {developer['author_id']}")
-            print(f"Score: {developer['score']:.4f}")
-            print(f"Average relevance: {developer['average_relevance']:.4f}")
-            print(f"Distinct contributions: {developer['contribution_count']}")
-            print(f"Breadth count: {developer['breadth_count']}")
-
-            print("\nTOP EVIDENCE")
-
-            for index, evidence in enumerate(developer["evidence"], start=1):
-
-                contribution_type = source_names.get(
-                    evidence["source"],
-                    evidence["source"]
-                )
-
-                print(f"\n  Evidence #{index}")
-                print(f"  Type: {contribution_type}")
-                print(
-                    f"  Parent: {evidence['item_kind'].upper()} "
-                    f"#{evidence['item_number']}"
-                )
-                print(f"  Title: {evidence['item_title']}")
-                print(f"  Author: @{evidence['developer_login']}")
-                print(f"  Similarity: {1 - float(evidence['distance']):.4f}")
-                print(f"  GitHub: {evidence['github_url']}")
-                print(f"  Text: {evidence['text']}")
-
-    finally:
-        db.close()

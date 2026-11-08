@@ -17,7 +17,7 @@ SOURCE_NAMES = {
 }
 
 
-def main():
+def main(repo_id):
     db = Database()
 
     try:
@@ -31,7 +31,7 @@ def main():
             return
 
         searcher = SemanticSearch(db)
-        results = searcher.search(query, limit=100)
+        results = searcher.search(query, repo_id=repo_id, limit=100)
 
         if not results:
             print("No relevant contributions found.")
@@ -113,7 +113,7 @@ def main():
 
         # 5. Build implementation graph.
         loader = GraphDataLoader(db)
-        graph_rows = loader.get_graph_data()
+        graph_rows = loader.get_graph_data(repo_id)
 
         builder = Builder()
         builder.build_graph(graph_rows)
@@ -234,4 +234,13 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        repo_id = int(input("Enter repository GitHub ID: ").strip())
+
+        if repo_id <= 0:
+            raise ValueError
+
+    except ValueError:
+        print("Invalid repository ID.")
+    else:
+        main(repo_id)

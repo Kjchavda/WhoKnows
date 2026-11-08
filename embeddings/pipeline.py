@@ -17,6 +17,7 @@ class Pipeline:
 
     def process_source(
         self,
+        repo_id,
         source_name,
         extract_method,
         dry_run=True,
@@ -29,8 +30,9 @@ class Pipeline:
         total_stored = 0
 
         while True:
-            # 1. Extract one batch from PostgreSQL
+            # 1. Extract one batch from the selected repository
             records = extract_method(
+                repo_id=repo_id,
                 limit=settings.extraction_batch_size,
                 offset=offset,
             )
@@ -56,8 +58,9 @@ class Pipeline:
                     settings.database_batch_size,
                 ):
                     batch = embedded_chunks[
-                        start : start + settings.database_batch_size
+                        start:start + settings.database_batch_size
                     ]
+
                     self.store.store_records(batch)
                     total_stored += len(batch)
 
@@ -70,7 +73,6 @@ class Pipeline:
 
             offset += len(records)
 
-            # Stop after the requested number of batches, if specified.
             if max_batches is not None and batch_number >= max_batches:
                 break
 
@@ -81,7 +83,7 @@ class Pipeline:
             f"{total_stored} stored."
         )
 
-    def run(self, dry_run=True, max_batches=None):
+    def run(self, repo_id, dry_run=True, max_batches=None):
         self.db.open()
 
         try:
@@ -93,6 +95,7 @@ class Pipeline:
 
             for source_name, extract_method in sources:
                 self.process_source(
+                    repo_id=repo_id,
                     source_name=source_name,
                     extract_method=extract_method,
                     dry_run=dry_run,
@@ -101,11 +104,3 @@ class Pipeline:
 
         finally:
             self.db.close()
-
-
-if __name__ == "__main__":
-    pipeline = Pipeline()
-
-    # Safe initial test: process one extraction batch per source
-    # without writing anything to the chunks table.
-    pipeline.run(dry_run=True, max_batches=1)

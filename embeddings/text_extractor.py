@@ -3,7 +3,7 @@ class TextExtractor:
     def __init__(self, db: Database):
         self.db = db
 
-    def extract_item_bodies(self, limit=100, offset=0):
+    def extract_item_bodies(self, repo_id, limit=100, offset=0):
         query = """
             SELECT
                 github_id AS item_id,
@@ -14,14 +14,16 @@ class TextExtractor:
                     NULLIF(TRIM(body), '')
                 ) AS text
             FROM items
-            WHERE
-                NULLIF(TRIM(title), '') IS NOT NULL
-                OR NULLIF(TRIM(body), '') IS NOT NULL
+            WHERE repo_id = %s
+                AND (
+                    NULLIF(TRIM(title), '') IS NOT NULL
+                    OR NULLIF(TRIM(body), '') IS NOT NULL
+                )
             ORDER BY github_id
             LIMIT %s OFFSET %s;
         """
 
-        rows = self.db.fetch_all(query, (limit, offset))
+        rows = self.db.fetch_all(query, (repo_id, limit, offset))
 
         return [
             {
@@ -34,28 +36,30 @@ class TextExtractor:
             for row in rows
         ]
 
-    def extract_comments(self, limit=100, offset=0):
+    def extract_comments(self, repo_id, limit=100, offset=0):
         query = """
-            SELECT 
-                github_id,
-                kind,
-                author_id,
-                item_id,
-                NULLIF(TRIM(body), '') AS body
-            FROM comments
-            WHERE 
-                NULLIF(TRIM(body),'') IS NOT NULL
-            ORDER BY github_id
+            SELECT
+                c.github_id,
+                c.kind,
+                c.author_id,
+                c.item_id,
+                NULLIF(TRIM(c.body), '') AS body
+            FROM comments c
+            JOIN items i
+                ON i.github_id = c.item_id
+            WHERE i.repo_id = %s
+                AND NULLIF(TRIM(c.body), '') IS NOT NULL
+            ORDER BY c.github_id
             LIMIT %s OFFSET %s;
         """
 
-        rows = self.db.fetch_all(query, (limit, offset))
+        rows = self.db.fetch_all(query, (repo_id, limit, offset))
 
         transformed_rows = []
 
         for row in rows:
             new_row = {
-                "item_id":row["item_id"],
+                "item_id": row["item_id"],
                 "source": row["kind"],
                 "source_id": row["github_id"],
                 "author_id": row["author_id"],
@@ -66,27 +70,29 @@ class TextExtractor:
 
         return transformed_rows
 
-    def extract_reviews(self, limit=100, offset=0):
+    def extract_reviews(self, repo_id, limit=100, offset=0):
         query = """
-            SELECT 
-                github_id,
-                item_id,
-                reviewer_id,
-                NULLIF(TRIM(body), '') AS body
-            FROM reviews
-            WHERE 
-                NULLIF(TRIM(body),'') IS NOT NULL
-            ORDER BY github_id
+            SELECT
+                rv.github_id,
+                rv.item_id,
+                rv.reviewer_id,
+                NULLIF(TRIM(rv.body), '') AS body
+            FROM reviews rv
+            JOIN items i
+                ON i.github_id = rv.item_id
+            WHERE i.repo_id = %s
+                AND NULLIF(TRIM(rv.body), '') IS NOT NULL
+            ORDER BY rv.github_id
             LIMIT %s OFFSET %s;
         """
 
-        rows = self.db.fetch_all(query, (limit, offset))
+        rows = self.db.fetch_all(query, (repo_id, limit, offset))
 
         transformed_rows = []
 
         for row in rows:
             new_row = {
-                "item_id":row["item_id"],
+                "item_id": row["item_id"],
                 "source": "review",
                 "source_id": row["github_id"],
                 "author_id": row["reviewer_id"],
