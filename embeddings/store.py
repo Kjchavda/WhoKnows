@@ -1,5 +1,5 @@
 
-from embeddings.db import Database
+from backend.db import Database
 
 
 class Store:

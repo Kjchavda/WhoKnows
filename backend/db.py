@@ -6,7 +6,7 @@ from psycopg import Connection
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
-from embeddings.config import settings, validate_settings
+from backend.config import settings, validate_settings
 
 
 class Database:

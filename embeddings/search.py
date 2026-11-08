@@ -1,5 +1,5 @@
 from embeddings.ranker import DeveloperRanker
-from embeddings.db import Database
+from backend.db import Database
 from embeddings.embedder import Embedder
 
 

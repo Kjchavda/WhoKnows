@@ -1,7 +1,7 @@
 
 from collections import Counter
 
-from embeddings.db import Database
+from backend.db import Database
 from embeddings.search import SemanticSearch
 
 from graph.builder import Builder

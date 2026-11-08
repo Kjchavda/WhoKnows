@@ -1,6 +1,6 @@
 
-from embeddings.config import settings
-from embeddings.db import Database
+from backend.config import settings
+from backend.db import Database
 from embeddings.text_extractor import TextExtractor
 from embeddings.chunker import Chunker
 from embeddings.embedder import Embedder
