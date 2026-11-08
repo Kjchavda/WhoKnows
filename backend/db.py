@@ -86,6 +86,12 @@ class Database:
         row = self.fetch_one("SELECT 1 AS connected")
         return row is not None and row["connected"] == 1
 
+    def run_tx(self, work):
+        """Execute a callback inside a database transaction."""
+        with self.pool.connection() as conn:
+            with conn.transaction():
+                return work(conn)
+
 
 if __name__ == "__main__":
     db = Database()

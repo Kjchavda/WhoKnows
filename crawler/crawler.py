@@ -16,6 +16,8 @@ import requests
 import psycopg
 from psycopg.types.json import Jsonb
 
+from backend.db import Database
+
 try:
     from dotenv import load_dotenv
     load_dotenv()
@@ -183,45 +185,6 @@ def require_database_url() -> str:
             "(including sslmode=require) before running crawler.py."
         )
     return DATABASE_URL
-
-class Database:
-    def __init__(self, url: str):
-        self.url = url
-        self.conn: psycopg.Connection | None = None
-        self.connect()
-
-    def connect(self) -> None:
-        if self.conn is not None:
-            try:
-                self.conn.close()
-            except Exception:
-                pass
-        # Neon pooled endpoints use PgBouncer; disabling prepared statements avoids incompatibilities.
-        self.conn = psycopg.connect(self.url, autocommit=True, prepare_threshold=None)
-
-    def close(self) -> None:
-        if self.conn is not None:
-            self.conn.close()
-            self.conn = None
-
-    def run_tx(self, work: Callable[[psycopg.Connection], Any]) -> Any:
-        """Retry only the current transaction after reconnect; writes are idempotent upserts."""
-        last_error: Exception | None = None
-        for attempt in range(MAX_DB_ATTEMPTS):
-            try:
-                if self.conn is None or self.conn.closed:
-                    self.connect()
-                assert self.conn is not None
-                with self.conn.transaction():
-                    return work(self.conn)
-            except psycopg.OperationalError as exc:
-                last_error = exc
-                log(f"Database connection dropped; reconnect attempt {attempt + 1}/{MAX_DB_ATTEMPTS}.")
-                if attempt + 1 >= MAX_DB_ATTEMPTS:
-                    break
-                time.sleep(2 ** attempt)
-                self.connect()
-        raise RuntimeError(f"Database operation failed after reconnect retries: {last_error}") from last_error
 
 def raw_upsert(cur: psycopg.Cursor, resource: str, github_id: int, payload: Any) -> None:
     cur.execute(
@@ -578,6 +541,70 @@ def run_init_db(db: Database) -> None:
     db.run_tx(lambda conn: conn.execute(SCHEMA_SQL))
     log("Database schema initialized (safe to run repeatedly).")
 
+def crawl_repository(
+    db: Database,
+    gh: GitHub,
+    full_name: str,
+    phase: str | None = None,
+    max_pages: int | None = None,
+    max_prs: int | None = None,
+) -> int:
+    """
+    Crawl a GitHub repository and return its database repository ID.
+
+    phase:
+        None       -> Run all crawling phases
+        "items"    -> Crawl issues and PRs
+        "comments" -> Crawl comments
+        "details"  -> Crawl PR details, reviews, and files
+    """
+
+    valid_phases = {"items", "comments", "details"}
+
+    if phase is not None and phase not in valid_phases:
+        raise ValueError(
+            f"Invalid phase: {phase}. "
+            f"Choose from {valid_phases}"
+        )
+
+    repo_id, owner, name = upsert_repository(
+        db,
+        gh,
+        full_name,
+    )
+
+    if phase is None or phase == "items":
+        crawl_items(
+            db,
+            gh,
+            repo_id,
+            owner,
+            name,
+            max_pages,
+        )
+
+    if phase is None or phase == "comments":
+        crawl_comments(
+            db,
+            gh,
+            repo_id,
+            owner,
+            name,
+            max_pages,
+        )
+
+    if phase is None or phase == "details":
+        crawl_details(
+            db,
+            gh,
+            repo_id,
+            owner,
+            name,
+            max_prs,
+        )
+
+    return repo_id
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Copy GitHub issues, PRs, comments, reviews and changed files to PostgreSQL.")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -590,7 +617,8 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
-        db = Database(require_database_url())
+        db = Database()
+        db.open()
     except psycopg.Error as exc:
         raise SystemExit(f"ERROR: Could not connect to PostgreSQL. Check DATABASE_URL and Neon SSL settings. Details: {exc}") from exc
 
@@ -605,15 +633,14 @@ def main() -> int:
         if args.max_prs is not None and args.max_prs < 0:
             raise SystemExit("--max-prs cannot be negative.")
 
-        repo_id, owner, name = upsert_repository(db, gh, args.repository)
-        phase = args.only
-        if phase in (None, "items"):
-            crawl_items(db, gh, repo_id, owner, name, args.max_pages)
-        if phase in (None, "comments"):
-            crawl_comments(db, gh, repo_id, owner, name, args.max_pages)
-        if phase in (None, "details"):
-            crawl_details(db, gh, repo_id, owner, name, args.max_prs)
-        log("Crawl finished.")
+        crawl_repository(
+            db=db,
+            gh=gh,
+            full_name=args.repository,
+            phase=args.only,
+            max_pages=args.max_pages,
+            max_prs=args.max_prs,
+        )
         return 0
     except KeyboardInterrupt:
         log("Interrupted by Ctrl+C. Committed page/PR progress is saved; restart the same command to resume.")
