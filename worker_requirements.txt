@@ -1,0 +1,7 @@
+redis
+rq
+python-dotenv
+psycopg[binary]
+psycopg-pool
+requests
+sentence-transformers

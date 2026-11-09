@@ -12,6 +12,11 @@ class DbSettings:
     # Database
     database_url: str = os.getenv("DATABASE_URL", "")
 
+    redis_url: str = os.getenv(
+                        "REDIS_URL",
+                        "redis://localhost:6379/0"
+                    )
+
     database_batch_size: int = int(
         os.getenv("DATABASE_BATCH_SIZE", "100")
     )
