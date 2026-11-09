@@ -79,7 +79,11 @@ class GraphRanker:
                 {}
             )
 
-            similarities = list(contributions.values())
+            similarities = (
+                list(contributions.values())
+                if isinstance(contributions, dict)
+                else contributions
+            )
 
             metric["semantic_contribution_count"] = len(similarities)
 

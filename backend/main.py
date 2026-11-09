@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from backend.db import Database
-from backend.routers import repositories
+from backend.routers import repositories, search
 
 
 @asynccontextmanager
@@ -27,6 +27,7 @@ app = FastAPI(
 )
 
 app.include_router(repositories.router)
+app.include_router(search.router)
 
 
 @app.get("/")
