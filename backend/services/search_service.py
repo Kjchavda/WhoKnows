@@ -8,10 +8,10 @@ from graph.ranker import GraphRanker
 class SearchService:
     """Coordinate semantic retrieval and graph-based developer ranking."""
 
-    def __init__(self, db):
+    def __init__(self, db, embedder):
         self.db = db
 
-        self.semantic_search = SemanticSearch(db)
+        self.semantic_search = SemanticSearch(db, embedder=embedder)
         self.graph_loader = GraphDataLoader(db)
 
     @staticmethod

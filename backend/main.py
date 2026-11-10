@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.config import settings
 from backend.db import Database
 from backend.routers import auth, repositories, search
+from embeddings.embedder import Embedder
 
 
 @asynccontextmanager
@@ -15,6 +16,7 @@ async def lifespan(app: FastAPI):
     db.open()
 
     app.state.db = db
+    app.state.embedder = Embedder()
 
     yield
 

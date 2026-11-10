@@ -7,10 +7,11 @@ from embeddings.pipeline import Pipeline
 
 
 class RepositoryService:
-    def __init__(self, db):
+    def __init__(self, db, embedder):
         self.db = db
+        self.embedder = embedder
         self.github = GitHub()
-        self.pipeline = Pipeline()
+        self.pipeline = Pipeline(db, embedder=embedder)
 
     def list_repositories(self):
         return self.db.fetch_all(

@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from backend.services.search_service import SearchService
+from embeddings import embedder
 
 
 router = APIRouter(
@@ -19,7 +20,8 @@ class SearchRequest(BaseModel):
 
 def get_search_service(request: Request):
     db = request.app.state.db
-    return SearchService(db)
+    embedder = request.app.state.embedder
+    return SearchService(db, embedder)
 
 
 @router.post("/")

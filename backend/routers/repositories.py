@@ -7,6 +7,7 @@ from backend.services.repository_service import RepositoryService
 from backend.redis_queue import indexing_queue
 from backend.tasks.indexing import index_repository_task
 from backend.redis_queue import redis_connection
+from embeddings import embedder
 
 
 router = APIRouter(
@@ -21,7 +22,8 @@ class IndexRepositoryRequest(BaseModel):
 
 def get_repository_service(request: Request):
     db = request.app.state.db
-    return RepositoryService(db)
+    embedder = request.app.state.embedder
+    return RepositoryService(db, embedder)
 
 
 @router.get("/")
