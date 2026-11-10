@@ -4,6 +4,53 @@ export default function Documentation() {
   const endpoints = [
     {
       method: 'GET',
+      path: '/',
+      summary: 'Check Backend Health',
+      description: 'Returns the API status and is used by the workspace health indicator.',
+      response: `{
+  "message": "WhoKnows API is running"
+}`,
+    },
+    {
+      method: 'GET',
+      path: '/auth/github',
+      summary: 'Start GitHub Sign-In',
+      description: 'Redirects the browser to GitHub OAuth. The frontend links to this route from the login page.',
+      response: 'Redirects to GitHub authorization.',
+    },
+    {
+      method: 'GET',
+      path: '/auth/github/callback',
+      summary: 'Complete GitHub Sign-In',
+      description: 'Validates the OAuth state, stores the GitHub user, sets the session cookie, and redirects to the configured frontend.',
+      response: 'Redirects to the frontend with an authenticated session cookie.',
+    },
+    {
+      method: 'GET',
+      path: '/auth/me',
+      summary: 'Get Signed-In User',
+      description: 'Returns the profile for the current session. The frontend uses this to restore sign-in state.',
+      response: `{
+  "user": {
+    "id": 1,
+    "github_id": 1024,
+    "username": "octocat",
+    "email": null,
+    "avatar_url": "https://avatars.githubusercontent.com/u/1024"
+  }
+}`,
+    },
+    {
+      method: 'POST',
+      path: '/auth/logout',
+      summary: 'Sign Out',
+      description: 'Clears the signed session cookie.',
+      response: `{
+  "message": "Logged out."
+}`,
+    },
+    {
+      method: 'GET',
       path: '/repositories/',
       summary: 'List Indexed Repositories',
       description: 'Returns all GitHub repositories currently indexed in the Neon PostgreSQL database.',
@@ -171,4 +218,3 @@ export default function Documentation() {
     </div>
   );
 }
-

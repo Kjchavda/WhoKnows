@@ -1,10 +1,22 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useRepositories } from '../context/RepositoryContext';
+import { useAuth } from '../context/AuthContext';
 
 export default function Sidebar({ mobileOpen, setMobileOpen }) {
   const { selectedRepo, backendHealth } = useRepositories();
+  const { user, loadingUser, authError: sessionError, signOut } = useAuth();
   const location = useLocation();
+  const [signOutError, setSignOutError] = useState(null);
+
+  const handleSignOut = async () => {
+    setSignOutError(null);
+    try {
+      await signOut();
+    } catch (error) {
+      setSignOutError(error.message || 'Unable to sign out.');
+    }
+  };
 
   const navItems = [
     {
@@ -147,32 +159,57 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
             </span>
           </div>
 
-          {/* User Profile info */}
+          {/* Signed-in GitHub profile */}
           <div className="flex items-center justify-between p-space-sm bg-surface-container rounded-xl border border-outline-variant/20">
             <div className="flex items-center gap-space-sm min-w-0">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-primary/30 to-secondary/30 border border-primary/40 flex items-center justify-center text-primary font-bold text-xs shrink-0">
-                WK
-              </div>
+              {user?.avatar_url ? (
+                <img
+                  src={user.avatar_url}
+                  alt=""
+                  className="h-8 w-8 shrink-0 rounded-full border border-outline-variant/40 object-cover"
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-primary/30 to-secondary/30 border border-primary/40 flex items-center justify-center text-primary font-bold text-xs shrink-0">
+                  {user ? user.username.slice(0, 2).toUpperCase() : 'WK'}
+                </div>
+              )}
               <div className="flex flex-col min-w-0">
                 <span className="font-body-sm text-body-sm text-on-surface font-medium truncate">
-                  developer
+                  {loadingUser ? 'Checking session...' : user?.username || 'Not signed in'}
                 </span>
                 <span className="font-label-sm text-label-sm text-outline truncate">
-                  Engineering Team
+                  {user ? 'GitHub account' : 'Connect a GitHub account'}
                 </span>
               </div>
             </div>
-            <NavLink
-              to="/docs"
-              className="text-outline hover:text-on-surface p-space-xs transition-colors shrink-0"
-              title="System Settings & API Docs"
-            >
-              <span className="material-symbols-outlined text-[18px]">settings</span>
-            </NavLink>
+            {user ? (
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="text-outline hover:text-on-surface p-space-xs transition-colors shrink-0"
+                title="Sign out"
+                aria-label="Sign out"
+              >
+                <span className="material-symbols-outlined text-[18px]">logout</span>
+              </button>
+            ) : (
+              <NavLink
+                to="/login"
+                className="text-outline hover:text-on-surface p-space-xs transition-colors shrink-0"
+                title="Sign in with GitHub"
+                aria-label="Sign in with GitHub"
+              >
+                <span className="material-symbols-outlined text-[18px]">login</span>
+              </NavLink>
+            )}
           </div>
+          {(sessionError || signOutError) && (
+            <p role="alert" className="font-label-sm text-label-sm text-error">
+              {signOutError || sessionError}
+            </p>
+          )}
         </div>
       </aside>
     </>
   );
 }
-

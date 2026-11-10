@@ -2,7 +2,9 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
+from backend.config import settings
 from backend.db import Database
 from backend.routers import auth, repositories, search
 
@@ -24,6 +26,14 @@ app = FastAPI(
     description="GitHub developer knowledge search engine",
     version="1.0.0",
     lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[settings.frontend_url.rstrip("/")],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(auth.router)

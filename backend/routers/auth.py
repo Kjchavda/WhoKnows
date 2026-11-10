@@ -30,6 +30,21 @@ def _require_session_secret() -> None:
             status_code=503,
             detail="SESSION_SECRET must contain at least 32 characters.",
         )
+    if settings.session_cookie_samesite not in {"lax", "strict", "none"}:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "SESSION_COOKIE_SAMESITE must be 'lax', 'strict', or 'none'."
+            ),
+        )
+    if (
+        settings.session_cookie_samesite == "none"
+        and not settings.session_cookie_secure
+    ):
+        raise HTTPException(
+            status_code=503,
+            detail="SESSION_COOKIE_SECURE must be true when SameSite is 'none'.",
+        )
 
 
 def _require_github_oauth_settings() -> None:
@@ -107,7 +122,7 @@ def _set_auth_cookie(response: Response, user_id: int) -> None:
         max_age=SESSION_MAX_AGE,
         httponly=True,
         secure=settings.session_cookie_secure,
-        samesite="lax",
+        samesite=settings.session_cookie_samesite,
         path="/",
     )
 
@@ -117,7 +132,7 @@ def _clear_auth_cookie(response: Response) -> None:
         key=SESSION_COOKIE,
         httponly=True,
         secure=settings.session_cookie_secure,
-        samesite="lax",
+        samesite=settings.session_cookie_samesite,
         path="/",
     )
 
@@ -234,21 +249,21 @@ def github_login() -> RedirectResponse:
 @router.get("/github/callback")
 async def github_callback(
     request: Request,
-    response: Response,
     code: str | None = None,
     state: str | None = None,
     error: str | None = None,
-) -> dict[str, Any]:
+) -> RedirectResponse:
     _require_github_oauth_settings()
 
     expected_state = request.cookies.get(OAUTH_STATE_COOKIE)
-    _clear_oauth_state_cookie(response)
 
     if error:
-        raise HTTPException(
-            status_code=400,
-            detail="GitHub authorization was not completed.",
+        response = RedirectResponse(
+            f"{settings.frontend_url.rstrip('/')}/login?error=github_denied",
+            status_code=303,
         )
+        _clear_oauth_state_cookie(response)
+        return response
 
     if (
         not code
@@ -264,8 +279,10 @@ async def github_callback(
     github_user = await _fetch_github_user(code)
     user = _user_service(request).save_github_user(github_user)
 
+    response = RedirectResponse(settings.frontend_url, status_code=303)
+    _clear_oauth_state_cookie(response)
     _set_auth_cookie(response, user["id"])
-    return {"user": user}
+    return response
 
 
 @router.get("/me")

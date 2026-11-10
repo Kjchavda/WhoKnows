@@ -15,7 +15,12 @@ class DbSettings:
     github_client_id: str = os.getenv("GITHUB_CLIENT_ID", "")
     github_client_secret: str = os.getenv("GITHUB_CLIENT_SECRET", "")
     github_redirect_uri: str = os.getenv("GITHUB_REDIRECT_URI", "")
+    frontend_url: str = os.getenv("FRONTEND_URL", "http://localhost:5173")
     session_secret: str = os.getenv("SESSION_SECRET", "")
+    session_cookie_samesite: str = os.getenv(
+        "SESSION_COOKIE_SAMESITE",
+        "lax",
+    ).lower()
     session_cookie_secure: bool = os.getenv(
         "SESSION_COOKIE_SECURE",
         "true",

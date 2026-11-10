@@ -1,20 +1,23 @@
-# GitHub OAuth
+# GitHub OAuth and frontend
 
 Apply [`backend/migrations/001_github_users.sql`](./backend/migrations/001_github_users.sql)
-to the PostgreSQL database before using the authentication routes. The migration
-expects `repositories.github_id` to contain unique GitHub repository IDs.
+before using sign-in. Configure `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`,
+`SESSION_SECRET` (at least 32 characters), and `GITHUB_REDIRECT_URI` in the
+backend environment. Register the redirect URI in the GitHub OAuth App.
 
-Configure these environment variables:
+For local development, set `GITHUB_REDIRECT_URI` to
+`http://localhost:5173/auth/github/callback`, set `FRONTEND_URL` to
+`http://localhost:5173`, and set `SESSION_COOKIE_SECURE=false` for HTTP. Leave
+`VITE_API_BASE_URL` empty so the Vite proxy sends API calls and OAuth through the
+frontend origin. In a separate frontend/API deployment, set `FRONTEND_URL` to
+the frontend origin and `VITE_API_BASE_URL` to the backend origin; set
+`VITE_AUTH_BASE_URL` to the backend origin when `/auth` is not proxied by the
+frontend host. If the frontend and backend are on different sites, set
+`SESSION_COOKIE_SAMESITE=none` and `SESSION_COOKIE_SECURE=true` so browsers send
+the session cookie with credentialed API requests. Keep the default `lax` when
+both hosts are same-site.
 
-- `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` from your GitHub OAuth App.
-- `GITHUB_REDIRECT_URI`, registered as the app's authorization callback, for
-  example `http://localhost:8000/auth/github/callback` during local development.
-- `SESSION_SECRET`, a random secret with at least 32 characters.
-- `SESSION_COOKIE_SECURE`, set to `false` only for local HTTP development; it
-  defaults to `true`.
-
-The login flow starts at `GET /auth/github`. The callback saves or updates the
-user and returns their profile with a signed, HTTP-only session cookie.
-`GET /auth/me` returns the authenticated profile, and `POST /auth/logout` clears
-the session. OAuth requests ask for `read:user`; private repository access is
-not requested.
+The login page is available at `/login`. The frontend calls `GET /auth/me` to
+restore the session and `POST /auth/logout` to sign out. Repository listing,
+repository details, indexing, job status polling, search, and API health are
+connected to the existing backend routes.

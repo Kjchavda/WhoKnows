@@ -5,6 +5,7 @@
 
 // Use configured Vite environment variable or fall back to proxy/local origin
 const BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
+const AUTH_BASE_URL = (import.meta.env.VITE_AUTH_BASE_URL || '').replace(/\/+$/, '');
 
 /**
  * Handle API responses and standardized error messages
@@ -39,6 +40,7 @@ async function handleResponse(response) {
 export async function listRepositories() {
   const url = `${BASE_URL}/repositories/`;
   const response = await fetch(url, {
+    credentials: 'include',
     headers: {
       'Accept': 'application/json',
     },
@@ -56,6 +58,7 @@ export async function getRepository(repoId) {
   if (!repoId) throw new Error('Repository ID is required');
   const url = `${BASE_URL}/repositories/${repoId}`;
   const response = await fetch(url, {
+    credentials: 'include',
     headers: {
       'Accept': 'application/json',
     },
@@ -77,6 +80,7 @@ export async function indexRepository(fullName) {
   const url = `${BASE_URL}/repositories/index`;
   const response = await fetch(url, {
     method: 'POST',
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
@@ -96,6 +100,7 @@ export async function getJobStatus(jobId) {
   if (!jobId) throw new Error('Job ID is required');
   const url = `${BASE_URL}/repositories/jobs/${jobId}`;
   const response = await fetch(url, {
+    credentials: 'include',
     headers: {
       'Accept': 'application/json',
     },
@@ -119,6 +124,7 @@ export async function searchRepository(repoId, query, limit = 100) {
   const url = `${BASE_URL}/search/`;
   const response = await fetch(url, {
     method: 'POST',
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
@@ -133,6 +139,43 @@ export async function searchRepository(repoId, query, limit = 100) {
 }
 
 /**
+ * Get the currently authenticated user
+ * GET /auth/me
+ */
+export async function getCurrentUser() {
+  const response = await fetch(`${AUTH_BASE_URL}/auth/me`, {
+    credentials: 'include',
+    headers: {
+      'Accept': 'application/json',
+    },
+  });
+  return handleResponse(response);
+}
+
+/**
+ * Sign out and clear the session cookie
+ * POST /auth/logout
+ */
+export async function logout() {
+  const response = await fetch(`${AUTH_BASE_URL}/auth/logout`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Accept': 'application/json',
+    },
+  });
+  return handleResponse(response);
+}
+
+/**
+ * URL to start the GitHub OAuth authorization flow
+ * GET /auth/github
+ */
+export function getGitHubLoginUrl() {
+  return `${AUTH_BASE_URL}/auth/github`;
+}
+
+/**
  * Check backend health and measure connection latency
  * GET /
  * @returns {Promise<{healthy: boolean, latencyMs: number}>}
@@ -143,6 +186,7 @@ export async function checkBackendHealth() {
     const url = `${BASE_URL}/`;
     const response = await fetch(url, {
       method: 'GET',
+      credentials: 'include',
       headers: { 'Accept': 'application/json' },
     });
     const latencyMs = Math.round(performance.now() - start);
@@ -157,4 +201,3 @@ export async function checkBackendHealth() {
     };
   }
 }
-
