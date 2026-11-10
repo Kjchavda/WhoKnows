@@ -1,16 +1,20 @@
-import base64
-import hashlib
 import hmac
 import secrets
-import time
 from typing import Any
 from urllib.parse import urlencode
 
 import httpx
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse
 
 from backend.config import settings
+from backend.dependencies import (
+    SESSION_COOKIE,
+    SESSION_MAX_AGE,
+    require_current_user_id,
+    require_session_secret,
+    session_cookie_value,
+)
 from backend.services.user_service import UserService
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -19,36 +23,11 @@ GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize"
 GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token"
 GITHUB_USER_URL = "https://api.github.com/user"
 GITHUB_SCOPES = "read:user"
-SESSION_COOKIE = "whoknows_session"
 OAUTH_STATE_COOKIE = "whoknows_oauth_state"
-SESSION_MAX_AGE = 60 * 60 * 24 * 7
-
-
-def _require_session_secret() -> None:
-    if len(settings.session_secret) < 32:
-        raise HTTPException(
-            status_code=503,
-            detail="SESSION_SECRET must contain at least 32 characters.",
-        )
-    if settings.session_cookie_samesite not in {"lax", "strict", "none"}:
-        raise HTTPException(
-            status_code=503,
-            detail=(
-                "SESSION_COOKIE_SAMESITE must be 'lax', 'strict', or 'none'."
-            ),
-        )
-    if (
-        settings.session_cookie_samesite == "none"
-        and not settings.session_cookie_secure
-    ):
-        raise HTTPException(
-            status_code=503,
-            detail="SESSION_COOKIE_SECURE must be true when SameSite is 'none'.",
-        )
 
 
 def _require_github_oauth_settings() -> None:
-    _require_session_secret()
+    require_session_secret()
     if not all(
         (
             settings.github_client_id,
@@ -65,60 +44,10 @@ def _require_github_oauth_settings() -> None:
         )
 
 
-def _session_cookie_value(user_id: int) -> str:
-    expires_at = int(time.time()) + SESSION_MAX_AGE
-    payload = f"{user_id}.{expires_at}"
-    signature = hmac.new(
-        settings.session_secret.encode(),
-        payload.encode(),
-        hashlib.sha256,
-    ).digest()
-    encoded_signature = base64.urlsafe_b64encode(signature).decode().rstrip("=")
-    return f"{payload}.{encoded_signature}"
-
-
-def _session_user_id(cookie_value: str | None) -> int | None:
-    if not cookie_value:
-        return None
-
-    try:
-        user_id_text, expires_at_text, signature = cookie_value.split(".")
-        user_id = int(user_id_text)
-        expires_at = int(expires_at_text)
-    except ValueError:
-        return None
-
-    try:
-        signature_bytes = signature.encode("ascii")
-    except UnicodeEncodeError:
-        return None
-
-    payload = f"{user_id_text}.{expires_at_text}"
-    expected_signature = base64.urlsafe_b64encode(
-        hmac.new(
-            settings.session_secret.encode(),
-            payload.encode(),
-            hashlib.sha256,
-        ).digest()
-    ).decode().rstrip("=")
-
-    if (
-        user_id <= 0
-        or expires_at <= int(time.time())
-        or not hmac.compare_digest(
-            signature_bytes,
-            expected_signature.encode("ascii"),
-        )
-    ):
-        return None
-
-    return user_id
-
-
 def _set_auth_cookie(response: Response, user_id: int) -> None:
     response.set_cookie(
         key=SESSION_COOKIE,
-        value=_session_cookie_value(user_id),
+        value=session_cookie_value(user_id),
         max_age=SESSION_MAX_AGE,
         httponly=True,
         secure=settings.session_cookie_secure,
@@ -286,13 +215,10 @@ async def github_callback(
 
 
 @router.get("/me")
-async def current_user(request: Request) -> dict[str, Any]:
-    _require_session_secret()
-
-    user_id = _session_user_id(request.cookies.get(SESSION_COOKIE))
-    if user_id is None:
-        raise HTTPException(status_code=401, detail="Not authenticated.")
-
+async def current_user(
+    request: Request,
+    user_id: int = Depends(require_current_user_id),
+) -> dict[str, Any]:
     user = _user_service(request).get_user(user_id)
     if user is None:
         raise HTTPException(status_code=401, detail="Not authenticated.")
@@ -301,6 +227,6 @@ async def current_user(request: Request) -> dict[str, Any]:
 
 @router.post("/logout")
 def logout(response: Response) -> dict[str, str]:
-    _require_session_secret()
+    require_session_secret()
     _clear_auth_cookie(response)
     return {"message": "Logged out."}

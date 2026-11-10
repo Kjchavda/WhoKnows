@@ -3,6 +3,7 @@ from rq.exceptions import NoSuchJobError
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
+from backend.dependencies import require_current_user_id
 from backend.services.repository_service import RepositoryService
 from backend.redis_queue import indexing_queue
 from backend.tasks.indexing import index_repository_task
@@ -33,7 +34,10 @@ def list_repositories(
     return service.list_repositories()
 
 
-@router.get("/{repo_id}")
+@router.get(
+    "/{repo_id}",
+    dependencies=[Depends(require_current_user_id)],
+)
 def get_repository(
     repo_id: int,
     service: RepositoryService = Depends(get_repository_service),
@@ -49,7 +53,11 @@ def get_repository(
     return repository
 
 
-@router.post("/index", status_code=202)
+@router.post(
+    "/index",
+    status_code=202,
+    dependencies=[Depends(require_current_user_id)],
+)
 def index_repository(request: IndexRepositoryRequest):
     full_name = request.full_name.strip()
 
