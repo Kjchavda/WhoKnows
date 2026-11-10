@@ -1,4 +1,3 @@
-
 from backend.db import Database
 
 
@@ -17,12 +16,13 @@ class Store:
                 source_id,
                 author_id,
                 text,
+                chunk_hash,
                 embedding,
                 embedding_model,
                 chunk_index
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT DO NOTHING;
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (item_id, source, chunk_index) DO NOTHING;
         """
 
         rows = [
@@ -32,6 +32,7 @@ class Store:
                 record["source_id"],
                 record["author_id"],
                 record["text"],
+                record["chunk_hash"],
                 record["embedding"],
                 record["embedding_model"],
                 record["chunk_index"],

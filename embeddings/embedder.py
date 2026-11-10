@@ -1,29 +1,33 @@
-
+from typing import Optional
 from sentence_transformers import SentenceTransformer
 from backend.config import settings as dbsettings
 from embeddings.config import settings as embeddingsettings
 
 
 class Embedder:
-    def __init__(self):
-        # Load the model once and reuse it for every batch.
-        self.model = SentenceTransformer(embeddingsettings.embedding_model)
+    def __init__(self, model_instance: Optional[SentenceTransformer] = None):
+        """
+        Accepts an existing SentenceTransformer instance (e.g. from app.state).
+        If None is passed (or called empty like Embedder()), it loads the default model.
+        """
+        if model_instance is not None:
+            self.model = model_instance
+        else:
+            self.model = SentenceTransformer(embeddingsettings.embedding_model)
 
     def embed_records(self, records):
-        embedded_records = []
+        if not records:
+            return []
 
+        embedded_records = []
         batch_size = embeddingsettings.embedding_batch_size
 
         for start in range(0, len(records), batch_size):
             batch = records[start : start + batch_size]
-
-            # Extract text from each record.
             texts = [record["text"] for record in batch]
 
-            # Generate one embedding per text.
-            embeddings = self.model.encode(texts)
+            embeddings = self.model.encode(texts, show_progress_bar=False)
 
-            # Preserve metadata and attach the corresponding embedding.
             for record, embedding in zip(batch, embeddings):
                 embedded_record = record.copy()
                 embedded_record["embedding"] = embedding.tolist()
