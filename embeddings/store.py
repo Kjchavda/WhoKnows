@@ -1,3 +1,4 @@
+
 from backend.db import Database
 
 
@@ -22,7 +23,13 @@ class Store:
                 chunk_index
             )
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (item_id, source, chunk_index) DO NOTHING;
+            ON CONFLICT ON CONSTRAINT uq_chunks_source_chunk
+            DO UPDATE SET
+                author_id = EXCLUDED.author_id,
+                text = EXCLUDED.text,
+                chunk_hash = EXCLUDED.chunk_hash,
+                embedding = EXCLUDED.embedding,
+                embedding_model = EXCLUDED.embedding_model;
         """
 
         rows = [
