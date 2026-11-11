@@ -11,14 +11,6 @@ CREATE TABLE "developers" (
 	"type" varchar(50) NOT NULL
 );
 
-CREATE TABLE "repositories" (
-	"github_id" bigint PRIMARY KEY,
-	"owner" text NOT NULL,
-	"name" text NOT NULL,
-	"full_name" text NOT NULL CONSTRAINT "repositories_full_name_key" UNIQUE,
-	"description" text
-);
-
 CREATE TABLE "users" (
 	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "users_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
 	"github_id" bigint NOT NULL CONSTRAINT "users_github_id_key" UNIQUE,
@@ -26,6 +18,17 @@ CREATE TABLE "users" (
 	"email" varchar(255),
 	"avatar_url" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE TABLE "repositories" (
+	"github_id" bigint PRIMARY KEY,
+	"owner" text NOT NULL,
+	"name" text NOT NULL,
+	"full_name" text NOT NULL CONSTRAINT "repositories_full_name_key" UNIQUE,
+	"description" text,
+	"visibility" text NOT NULL DEFAULT 'public'
+		CHECK (visibility IN ('public','private')),
+	"indexed_by" bigint REFERENCES users(id)
 );
 
 CREATE TABLE "crawl_state" (

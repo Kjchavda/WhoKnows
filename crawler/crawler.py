@@ -41,13 +41,26 @@ SCHEMA_SQL = r"""
 -- Step 3 (embeddings) will add:  CREATE EXTENSION IF NOT EXISTS vector;
 -- (Neon supports pgvector; nothing to install.)
 
+-- One row per authenticated GitHub user.
+CREATE TABLE IF NOT EXISTS users (
+    id         BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    github_id  BIGINT NOT NULL UNIQUE,
+    username   TEXT NOT NULL,
+    email      TEXT,
+    avatar_url TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- One row per crawled GitHub repository.
 CREATE TABLE IF NOT EXISTS repositories (
     github_id   BIGINT PRIMARY KEY,
     owner       TEXT NOT NULL,
     name        TEXT NOT NULL,
     full_name   TEXT NOT NULL UNIQUE,
-    description TEXT
+    description TEXT,
+    visibility  TEXT NOT NULL DEFAULT 'public'
+                    CHECK (visibility IN ('public', 'private')),
+    indexed_by  BIGINT REFERENCES users(id)
 );
 
 -- One row per GitHub account (human or bot). Keyed on the numeric id because
@@ -311,6 +324,8 @@ def upsert_repository(db: Database, gh: GitHub, full_name: str) -> tuple[int, st
         raise SystemExit("Repository must be OWNER/NAME, for example redis/redis-py.")
     owner, name = parts
     data, _ = gh.get_json(f"{API_URL}/repos/{owner}/{name}")
+    if data.get("private"):
+        raise ValueError("Only public repositories are supported")
     repo_id = int(data["id"])
     canonical_owner = txt(data["owner"]["login"])
     canonical_name = txt(data["name"])

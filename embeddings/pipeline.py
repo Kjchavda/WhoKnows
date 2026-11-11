@@ -12,6 +12,7 @@ from embeddings.text_extractor import TextExtractor
 class Pipeline:
     def __init__(self, db: Optional[Database] = None, embedder: Optional[Embedder] = None):
         # Allow sharing existing DB connection or create a new one
+        self._owns_db = db is None
         self.db = db if db is not None else Database()
         self.extractor = TextExtractor(self.db)
         self.chunker = Chunker()
@@ -113,7 +114,8 @@ class Pipeline:
         )
 
     def run(self, repo_id: int, dry_run: bool = True, max_batches: Optional[int] = None):
-        self.db.open()
+        if self._owns_db:
+            self.db.open()
 
         try:
             sources = [
@@ -132,4 +134,5 @@ class Pipeline:
                 )
 
         finally:
-            self.db.close()
+            if self._owns_db:
+                self.db.close()

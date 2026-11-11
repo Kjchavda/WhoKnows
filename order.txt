@@ -1,0 +1,40 @@
+## Roadmap
+
+I'm counting the project as 90% done when it is correct, measured against baselines, has real graph ranking, and can be run and demoed by someone else.
+
+**Phase 0: Repair (1-2 days)**
+1. Fix the worker: load an `Embedder` in the task and pass it in. Done when a small repo indexes end to end through the queue.
+2. Redo the `chunks` keys: one unique key that includes `source_id` (use `NULLS NOT DISTINCT` so item bodies are covered), drop the other two, make `ON CONFLICT` name that key, and use `DO UPDATE` so edited text replaces stale chunks. Remove the "same text on same item" filter, since attribution depends on who said it.
+3. Delete redis-py's old chunks and re-embed with the 150-word setting.
+4. Make `schema.sql` runnable and test it on a fresh Neon branch. Add `vector_cosine_ops`, and check the `EXPLAIN` plan.
+
+**Phase 1: Measurement (4-5 days)**
+5. Add `created_at` to `chunks`, so "only data before time T" is one `WHERE` clause.
+6. Write the evaluation harness. Use closed issues linked to merged PRs; the correct answers are the PR author and reviewers. Search only chunks older than the issue, and exclude the fixing PR. Use 100-200 issues, with 30% held out for the final numbers.
+7. Record baselines: random active developer, most active overall, vector-only, your current ranker. Commit the results table.
+8. Restore pytest tests (ranker, chunker, constraints, auth) and run them in GitHub Actions.
+
+**Phase 2: Better ranking (8-10 days)**
+9. Retrieval improvements, one at a time, each kept only if the harness improves: prepend the PR title to comment chunks, add keyword search (`tsvector`) with rank fusion, and try `bge-small` against MiniLM.
+10. Real personalized PageRank (networkx). Seed it from files of retrieved PRs and from issues' linked PRs. Include reviewers and review comments on files, down-weight huge PRs and hot files, add recency decay, and let the graph find candidates instead of only reranking authors already retrieved. Cache the graph per repo.
+11. Normalise the score components so weights mean something, tune on the training split, and report on the held-out split.
+
+**Phase 3: Differentiators (5-6 days, optional if short on time)**
+12. Parse pasted stack traces into file and function seeds.
+13. Compare against CODEOWNERS (needs a small crawler addition) and add a bus-factor view.
+14. Score breakdown per developer. Replace labels like "Architectural Specialist" with the evidence, plus a "who to ask, not who's best" note.
+
+**Phase 4: Hardening (4-5 days)**
+15. Authorization: write `user_repositories` when someone indexes, protect `/search`, the repo list and `/jobs`, and add rate limits and a size cap per job.
+16. Incremental sync on a schedule, which re-embeds only changed text.
+17. Observability: `/health` (database, Redis, model), per-stage timing, queue depth, GitHub quota remaining. Target p95 search under about 1.5 seconds.
+
+**Phase 5: Ship (4-5 days)**
+18. Run on 2-3 more repos of different kinds and report the numbers per repo, including where it fails.
+19. One-command setup (Compose for API, worker, Redis), plus `.env.example`.
+20. Deploy a read-only public demo on pre-indexed redis-py.
+21. Write the README: architecture, the results table, design decisions with rejected alternatives, limitations and the ethics note.
+
+You'll be around 60% after Phase 1, 80% after Phase 2, and 90% after Phase 4. That's roughly 5 weeks of part-time work. If time runs short, skip Phase 3. The UI is already more than enough, so don't spend more time on it.
+
+I can start on Phase 0 now, with the fixed constraints, the `Store` change, a runnable `schema.sql`, and the worker fix, tested on a local Postgres. I can also turn the roadmap into a tick-off checklist page.
