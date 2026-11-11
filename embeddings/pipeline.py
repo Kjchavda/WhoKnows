@@ -20,11 +20,16 @@ class Pipeline:
         self.embedder = embedder if embedder is not None else Embedder()
         self.store = Store(self.db)
 
-    def _get_existing_hashes(self, source_id: int) -> set[str]:
-        """Fetch existing chunk hashes for this source item to avoid re-embedding existing chunks."""
-        sql = "SELECT chunk_hash FROM chunks WHERE source_id = %s;"
-        rows = self.db.fetch_all(sql, (source_id,))
-        return {r["chunk_hash"] for r in rows if r.get("chunk_hash")}
+    @staticmethod
+    def _chunk_key(chunk: dict) -> tuple:
+        return (
+            chunk["item_id"],
+            chunk["source"],
+            chunk["source_id"],
+            chunk["author_id"],
+            chunk["chunk_index"],
+            chunk["chunk_hash"],
+        )
 
     def process_source(
         self,
@@ -63,17 +68,21 @@ class Pipeline:
                 item_ids = tuple({c["item_id"] for c in chunks if c.get("item_id") is not None})
                 
                 if item_ids:
-                    # Use ANY(%s) which psycopg handles cleanly for both single and multiple IDs
                     sql = """
-                        SELECT chunk_hash 
+                        SELECT item_id, source, source_id, author_id, chunk_index, chunk_hash
                         FROM chunks 
                         WHERE item_id = ANY(%s) AND chunk_hash IS NOT NULL;
                     """
                     existing_rows = self.db.fetch_all(sql, (list(item_ids),))
-                    existing_hashes = {r["chunk_hash"] for r in existing_rows}
-                    
-                    # Keep only unseen chunks
-                    chunks = [c for c in chunks if c["chunk_hash"] not in existing_hashes]
+                    existing_keys = {
+                        self._chunk_key(row) for row in existing_rows
+                    }
+
+                    chunks = [
+                        chunk
+                        for chunk in chunks
+                        if self._chunk_key(chunk) not in existing_keys
+                    ]
             # 4. Embed ONLY new/missing chunks
             if chunks:
                 embedded_chunks = self.embedder.embed_records(chunks)

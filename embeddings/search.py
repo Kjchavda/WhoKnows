@@ -64,9 +64,13 @@ class SemanticSearch:
             LIMIT %s;
         """
 
-        rows = self.db.fetch_all(
-            sql,
-            (query_embedding, repo_id, query_embedding, limit),
-        )
+        def search_with_oversampling(conn):
+            conn.execute("SET LOCAL hnsw.ef_search = 100")
+            return conn.execute(
+                sql,
+                (query_embedding, repo_id, query_embedding, limit),
+            ).fetchall()
+
+        rows = self.db.run_tx(search_with_oversampling)
 
         return rows

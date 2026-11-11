@@ -17,19 +17,20 @@ class Store:
                 source_id,
                 author_id,
                 text,
-                chunk_hash,
                 embedding,
                 embedding_model,
-                chunk_index
+                chunk_index,
+                chunk_hash,
+                created_at
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT ON CONSTRAINT uq_chunks_source_chunk
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+            ON CONFLICT (item_id, source, source_id, author_id, chunk_index)
             DO UPDATE SET
-                author_id = EXCLUDED.author_id,
                 text = EXCLUDED.text,
-                chunk_hash = EXCLUDED.chunk_hash,
                 embedding = EXCLUDED.embedding,
-                embedding_model = EXCLUDED.embedding_model;
+                embedding_model = EXCLUDED.embedding_model,
+                chunk_hash = EXCLUDED.chunk_hash,
+                created_at = EXCLUDED.created_at;
         """
 
         rows = [
@@ -39,10 +40,10 @@ class Store:
                 record["source_id"],
                 record["author_id"],
                 record["text"],
-                record["chunk_hash"],
                 record["embedding"],
                 record["embedding_model"],
                 record["chunk_index"],
+                record["chunk_hash"],
             )
             for record in records
         ]
