@@ -1,8 +1,7 @@
 
-from embeddings.search import SemanticSearch
-from graph.builder import Builder
-from graph.data_loader import GraphDataLoader
-from graph.ranker import GraphRanker
+import os
+
+from graph.pipeline import DEFAULT_PRESET, PRESETS, RankingPipeline
 
 
 class SearchService:
@@ -10,9 +9,7 @@ class SearchService:
 
     def __init__(self, db, embedder):
         self.db = db
-
-        self.semantic_search = SemanticSearch(db, embedder=embedder)
-        self.graph_loader = GraphDataLoader(db)
+        self.ranking_pipeline = RankingPipeline(db, embedder)
 
     @staticmethod
     def _get_contribution_id(row):
@@ -41,103 +38,28 @@ class SearchService:
         if not query or not query.strip():
             raise ValueError("Search query cannot be empty")
 
-        # 1. Semantic retrieval
-        semantic_results = self.semantic_search.search(
-            query=query,
+        preset_name = os.getenv("RANKING_PRESET", DEFAULT_PRESET)
+        if preset_name not in PRESETS:
+            raise ValueError(
+                f"Unknown ranking preset {preset_name!r}; "
+                f"choose from {', '.join(sorted(PRESETS))}."
+            )
+
+        pipeline_result = self.ranking_pipeline.run(
             repo_id=repo_id,
+            query=query,
+            config=PRESETS[preset_name],
             limit=limit,
         )
-
-        if not semantic_results:
+        if not pipeline_result.ranked:
             return []
 
-        # 2. Deduplicate contributions and calculate semantic scores
-        developer_contributions = {}
-        developer_evidence = {}
-
-        for row in semantic_results:
-            developer_id = row["author_id"]
-
-            if developer_id is None:
-                continue
-
-            contribution_id = self._get_contribution_id(row)
-            contribution_key = (row["source"], contribution_id)
-
-            similarity = 1 - float(row["distance"])
-
-            if developer_id not in developer_contributions:
-                developer_contributions[developer_id] = {}
-
-            if developer_id not in developer_evidence:
-                developer_evidence[developer_id] = {}
-
-            existing_score = developer_contributions[developer_id].get(
-                contribution_key
-            )
-
-            # Keep the best chunk for each contribution.
-            if existing_score is None or similarity > existing_score:
-                developer_contributions[developer_id][contribution_key] = (
-                    similarity
-                )
-
-                developer_evidence[developer_id][contribution_key] = {
-                    **row,
-                    "similarity": similarity,
-                }
-
-        if not developer_contributions:
-            return []
-
-        # GraphRanker expects semantic scores grouped by developer.
-        semantic_scores = {
-            developer_id: list(contributions.values())
-            for developer_id, contributions in developer_contributions.items()
-        }
-
-        developer_ids = set(semantic_scores.keys())
-
-        # 3. Identify PRs retrieved by semantic search
-        retrieved_pr_ids = {
-            row["item_id"]
-            for row in semantic_results
-            if row["item_kind"] == "pr"
-        }
-
-        # 4. Build the repository-specific implementation graph
-        graph_rows = self.graph_loader.get_graph_data(repo_id)
-
-        builder = Builder()
-        builder.build_graph(graph_rows)
-
-        # 5. Collect files associated with retrieved PRs
-        relevant_files = set()
-
-        for pr_id in retrieved_pr_ids:
-            relevant_files.update(
-                builder.graph.get("pr_" + str(pr_id), [])
-            )
-
-        # 6. Rank developers using the existing graph ranker
-        ranker = GraphRanker(builder)
-
-        ranked_developers = ranker.rank(
-            relevant_files=relevant_files,
-            developer_ids=developer_ids,
-            retrieved_pr_ids=retrieved_pr_ids,
-            semantic_scores=semantic_scores,
-        )
-
-        # 7. Attach evidence to each ranked developer
         results = []
 
-        for developer in ranked_developers:
+        for developer in pipeline_result.ranked:
             developer_id = developer["developer_id"]
 
-            evidence = list(
-                developer_evidence.get(developer_id, {}).values()
-            )
+            evidence = list(pipeline_result.evidence.get(developer_id, {}).values())
 
             evidence.sort(
                 key=lambda row: row["similarity"],
