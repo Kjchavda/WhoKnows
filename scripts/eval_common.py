@@ -5,6 +5,7 @@ from statistics import fmean
 from typing import Any
 
 from backend.db import Database
+from graph.pipeline import DEFAULT_PRESET
 
 
 def _as_utc(value: datetime) -> datetime:
@@ -331,22 +332,30 @@ def render_eval_report(summary: dict[str, Any]) -> str:
         lines.extend([
             "## What changed and what moved",
             "",
-            "| Preset | Test MRR | Test Hit@3 | Test candidate recall | Paired MRR delta vs baseline (95% CI) |",
-            "|---|---:|---:|---:|---:|",
+            "| Preset | Test MRR | Test Hit@3 | Test candidate recall | Paired MRR delta vs baseline (95% CI) | "
+            f"Paired MRR delta vs `{summary['naive_baseline']}` (95% CI) |",
+            "|---|---:|---:|---:|---:|---:|",
         ])
         positive_ci_presets = []
         for preset in summary["presets"]:
             metrics = summary["metrics"]["test"][preset]["overall"]
             paired_ci = metrics["paired_mrr_difference_ci_95"]
+            naive_paired_ci = metrics["paired_mrr_difference_ci_95_naive"]
             paired_interval = (
                 "n/a"
                 if paired_ci is None
                 else f"[{paired_ci[0]:.3f}, {paired_ci[1]:.3f}]"
             )
+            naive_paired_interval = (
+                "n/a"
+                if naive_paired_ci is None
+                else f"[{naive_paired_ci[0]:.3f}, {naive_paired_ci[1]:.3f}]"
+            )
             lines.append(
                 f"| {preset} | {metrics['mrr']:.4f} | "
                 f"{metrics['hit_at_3']:.4f} | "
-                f"{metrics['candidate_recall']:.4f} | {paired_interval} |"
+                f"{metrics['candidate_recall']:.4f} | {paired_interval} | "
+                f"{naive_paired_interval} |"
             )
             if paired_ci is not None and paired_ci[0] > 0:
                 positive_ci_presets.append(preset)
@@ -360,7 +369,7 @@ def render_eval_report(summary: dict[str, Any]) -> str:
             "",
             f"Test-split presets whose paired MRR-difference interval is entirely "
             f"above zero: {candidates}. These are candidates for owner review, "
-            "not automatic promotions; `DEFAULT_PRESET` remains `legacy-graph`.",
+            f"not automatic promotions; `DEFAULT_PRESET` is `{DEFAULT_PRESET}`.",
             "",
             "Known limitations: `pr_files` reflects each PR's final file set, "
             "and the `developers` table has no time dimension.",

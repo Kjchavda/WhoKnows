@@ -141,6 +141,7 @@ class HistoryAnswerableTests(unittest.TestCase):
                 "9",
                 "--presets",
                 "semantic",
+                "--allow-dirty",
             ])
 
         self.assertEqual(result, 0)
@@ -152,6 +153,7 @@ class HistoryAnswerableTests(unittest.TestCase):
         self.assertEqual(answerable_flags, {
             "semantic": True,
             "legacy-graph": True,
+            "popularity-recent": True,
         })
 
 

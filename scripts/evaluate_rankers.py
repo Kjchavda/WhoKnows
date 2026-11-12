@@ -26,10 +26,47 @@ def _commit_hash() -> str:
         capture_output=True,
         text=True,
     )
-    return result.stdout.strip()
+    commit = result.stdout.strip()
+    status = subprocess.run(
+        [
+            "git",
+            "status",
+            "--porcelain",
+            "--untracked-files=all",
+            "--",
+            ".",
+            ":(exclude)eval_results/",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return commit + ("-dirty" if status.stdout.strip() else "")
 
 
-def _selected_presets(value: str | None, baseline: str) -> list[str]:
+def _is_dirty() -> bool:
+    result = subprocess.run(
+        [
+            "git",
+            "status",
+            "--porcelain",
+            "--untracked-files=all",
+            "--",
+            ".",
+            ":(exclude)eval_results/",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return bool(result.stdout.strip())
+
+
+def _selected_presets(
+    value: str | None,
+    baseline: str,
+    naive_baseline: str,
+) -> list[str]:
     if value is None or value.strip().lower() == "all":
         requested = list(PRESETS)
     else:
@@ -38,10 +75,11 @@ def _selected_presets(value: str | None, baseline: str) -> list[str]:
     unknown = sorted(set(requested) - PRESETS.keys())
     if unknown:
         raise ValueError(f"Unknown ranking presets: {', '.join(unknown)}")
-    if baseline not in PRESETS:
-        raise ValueError(f"Unknown baseline preset: {baseline}")
-    if baseline not in requested:
-        requested.append(baseline)
+    for required in (baseline, naive_baseline):
+        if required not in PRESETS:
+            raise ValueError(f"Unknown baseline preset: {required}")
+        if required not in requested:
+            requested.append(required)
     return list(dict.fromkeys(requested))
 
 
@@ -49,14 +87,19 @@ def _summary_for_split(
     query_results: dict[str, list[dict[str, Any]]],
     split: str,
     baseline: str,
+    naive_baseline: str,
     resamples: int = 1000,
 ) -> dict[str, Any]:
     summaries = {}
     baseline_rows = query_results[baseline]
+    naive_baseline_rows = query_results[naive_baseline]
 
     for preset, rows in query_results.items():
         split_rows = [row for row in rows if row["split"] == split]
         baseline_split = [row for row in baseline_rows if row["split"] == split]
+        naive_baseline_split = [
+            row for row in naive_baseline_rows if row["split"] == split
+        ]
         metrics = {}
         for key, predicate in (
             ("overall", lambda row: True),
@@ -68,9 +111,18 @@ def _summary_for_split(
                 for row in baseline_split
                 if predicate(row)
             }
+            paired_naive_baseline = {
+                row["issue_number"]: row["mrr"]
+                for row in naive_baseline_split
+                if predicate(row)
+            }
             paired_rows = [
                 row for row in selected
                 if row["issue_number"] in paired_baseline
+            ]
+            paired_naive_rows = [
+                row for row in selected
+                if row["issue_number"] in paired_naive_baseline
             ]
             summary = summarize_queries(selected, resamples=resamples)
             summary["paired_mrr_difference_ci_95"] = paired_bootstrap_ci(
@@ -78,6 +130,14 @@ def _summary_for_split(
                 [
                     paired_baseline[row["issue_number"]]
                     for row in paired_rows
+                ],
+                resamples=resamples,
+            )
+            summary["paired_mrr_difference_ci_95_naive"] = paired_bootstrap_ci(
+                [row["mrr"] for row in paired_naive_rows],
+                [
+                    paired_naive_baseline[row["issue_number"]]
+                    for row in paired_naive_rows
                 ],
                 resamples=resamples,
             )
@@ -181,13 +241,22 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--holdout", type=float, default=0.3)
     parser.add_argument("--presets", default=None, help="Comma-separated list or all")
     parser.add_argument("--baseline", default="legacy-graph")
+    parser.add_argument("--naive-baseline", default="popularity-recent")
     parser.add_argument("--out", type=Path, default=Path("eval_results"))
+    parser.add_argument("--allow-dirty", action="store_true")
     args = parser.parse_args(argv)
+
+    if not args.allow_dirty and _is_dirty():
+        parser.error("working tree is dirty; commit changes or pass --allow-dirty")
 
     if args.limit <= 0:
         parser.error("--limit must be positive")
     try:
-        presets = _selected_presets(args.presets, args.baseline)
+        presets = _selected_presets(
+            args.presets,
+            args.baseline,
+            args.naive_baseline,
+        )
         split_dataset([], args.holdout)
     except ValueError as exc:
         parser.error(str(exc))
@@ -270,6 +339,7 @@ def main(argv: list[str] | None = None) -> int:
             query_results,
             split_name,
             args.baseline,
+            args.naive_baseline,
         )
 
     generated_at = datetime.now(timezone.utc)
@@ -279,6 +349,7 @@ def main(argv: list[str] | None = None) -> int:
         "commit": _commit_hash(),
         "holdout": args.holdout,
         "baseline": args.baseline,
+        "naive_baseline": args.naive_baseline,
         "presets": presets,
         "metrics": metrics,
     }
