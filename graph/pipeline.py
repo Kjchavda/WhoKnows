@@ -5,7 +5,7 @@ from typing import Any, Literal
 
 from backend.db import Database
 from embeddings.embedder import Embedder
-from embeddings.ranker import DeveloperRanker
+from embeddings.ranker import SemanticRankerAdapter
 from embeddings.search import SemanticSearch
 from graph.builder import Builder
 from graph.config import GraphConfig
@@ -127,10 +127,7 @@ class RankingPipeline:
             return PipelineResult([], candidate_ids, semantic_rows, None, evidence)
 
         if config.ranker == "semantic":
-            ranked = [
-                {**result, "developer_id": result["author_id"]}
-                for result in DeveloperRanker().rank(semantic_rows)
-            ]
+            ranked = SemanticRankerAdapter().rank(semantic_rows)
             return PipelineResult(ranked, candidate_ids, semantic_rows, None, evidence)
 
         graph_rows = self.graph_loader.get_graph_data(

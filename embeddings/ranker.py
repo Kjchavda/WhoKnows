@@ -98,3 +98,17 @@ class DeveloperRanker:
         )
 
         return ranked_developers
+
+
+class SemanticRankerAdapter:
+    def __init__(self):
+        self.ranker = DeveloperRanker()
+
+    def rank(self, search_results):
+        return [
+            {
+                **result,
+                "developer_id": result["author_id"],
+            }
+            for result in self.ranker.rank(search_results)
+        ]
