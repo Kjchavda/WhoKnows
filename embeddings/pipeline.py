@@ -69,19 +69,24 @@ class Pipeline:
                 
                 if item_ids:
                     sql = """
-                        SELECT item_id, source, source_id, author_id, chunk_index, chunk_hash
+                        SELECT item_id, source, source_id, author_id, chunk_index, chunk_hash, created_at
                         FROM chunks 
                         WHERE item_id = ANY(%s) AND chunk_hash IS NOT NULL;
                     """
                     existing_rows = self.db.fetch_all(sql, (list(item_ids),))
-                    existing_keys = {
-                        self._chunk_key(row) for row in existing_rows
+                    existing_timestamps = {
+                        self._chunk_key(row): row.get("created_at")
+                        for row in existing_rows
                     }
 
                     chunks = [
                         chunk
                         for chunk in chunks
-                        if self._chunk_key(chunk) not in existing_keys
+                        if (
+                            self._chunk_key(chunk) not in existing_timestamps
+                            or existing_timestamps[self._chunk_key(chunk)]
+                            != chunk.get("created_at")
+                        )
                     ]
             # 4. Embed ONLY new/missing chunks
             if chunks:

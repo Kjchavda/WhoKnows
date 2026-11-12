@@ -8,6 +8,7 @@ class TextExtractor:
             SELECT
                 github_id AS item_id,
                 author_id,
+                created_at,
                 CONCAT_WS(
                     E'\\n',
                     NULLIF(TRIM(title), ''),
@@ -32,6 +33,7 @@ class TextExtractor:
                 "source_id": None,
                 "author_id": row["author_id"],
                 "text": row["text"],
+                "created_at": row["created_at"],
             }
             for row in rows
         ]
@@ -43,7 +45,8 @@ class TextExtractor:
                 c.kind,
                 c.author_id,
                 c.item_id,
-                NULLIF(TRIM(c.body), '') AS body
+                NULLIF(TRIM(c.body), '') AS body,
+                c.created_at
             FROM comments c
             JOIN items i
                 ON i.github_id = c.item_id
@@ -63,7 +66,8 @@ class TextExtractor:
                 "source": row["kind"],
                 "source_id": row["github_id"],
                 "author_id": row["author_id"],
-                "text": row["body"]
+                "text": row["body"],
+                "created_at": row["created_at"],
             }
 
             transformed_rows.append(new_row)
@@ -76,7 +80,8 @@ class TextExtractor:
                 rv.github_id,
                 rv.item_id,
                 rv.reviewer_id,
-                NULLIF(TRIM(rv.body), '') AS body
+                NULLIF(TRIM(rv.body), '') AS body,
+                rv.submitted_at AS created_at
             FROM reviews rv
             JOIN items i
                 ON i.github_id = rv.item_id
@@ -96,7 +101,8 @@ class TextExtractor:
                 "source": "review",
                 "source_id": row["github_id"],
                 "author_id": row["reviewer_id"],
-                "text": row["body"]
+                "text": row["body"],
+                "created_at": row["created_at"],
             }
 
             transformed_rows.append(new_row)

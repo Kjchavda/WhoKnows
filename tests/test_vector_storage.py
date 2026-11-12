@@ -1,4 +1,5 @@
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import cast
 
@@ -9,6 +10,7 @@ from embeddings.embedder import Embedder
 from embeddings.pipeline import Pipeline
 from embeddings.search import SemanticSearch
 from embeddings.store import Store
+from embeddings.text_extractor import TextExtractor
 from sentence_transformers import SentenceTransformer
 
 
@@ -81,6 +83,60 @@ class _StoreStub(Store):
 
 
 class VectorStorageTests(unittest.TestCase):
+    def test_extractors_use_historical_source_timestamps(self):
+        created_at = datetime(2020, 1, 2, tzinfo=timezone.utc)
+
+        item_db = _FakeDatabase([{
+            "item_id": 1,
+            "author_id": 2,
+            "text": "Issue body",
+            "created_at": created_at,
+        }])
+        item = TextExtractor(item_db).extract_item_bodies(9)[0]
+        self.assertEqual(item["created_at"], created_at)
+        self.assertIn("created_at", item_db.fetch_query or "")
+
+        comment_db = _FakeDatabase([{
+            "github_id": 3,
+            "kind": "issue_comment",
+            "author_id": 4,
+            "item_id": 1,
+            "body": "Comment body",
+            "created_at": created_at,
+        }])
+        comment = TextExtractor(comment_db).extract_comments(9)[0]
+        self.assertEqual(comment["created_at"], created_at)
+        self.assertIn("c.created_at", comment_db.fetch_query or "")
+
+        review_db = _FakeDatabase([{
+            "github_id": 5,
+            "item_id": 1,
+            "reviewer_id": 6,
+            "body": "Review body",
+            "created_at": created_at,
+        }])
+        review = TextExtractor(review_db).extract_reviews(9)[0]
+        self.assertEqual(review["created_at"], created_at)
+        self.assertIn("rv.submitted_at AS created_at", review_db.fetch_query or "")
+
+    def test_chunker_copies_timestamp_to_every_chunk(self):
+        created_at = datetime(2020, 1, 2, tzinfo=timezone.utc)
+        chunker = Chunker()
+        chunker.chunk_size = 2
+        chunker.chunk_overlap = 0
+
+        chunks = chunker.chunk_records([{
+            "item_id": 1,
+            "source": "item_body",
+            "source_id": None,
+            "author_id": 2,
+            "text": "one two three",
+            "created_at": created_at,
+        }])
+
+        self.assertEqual(len(chunks), 2)
+        self.assertTrue(all(chunk["created_at"] == created_at for chunk in chunks))
+
     def test_pipeline_deduplicates_only_the_same_authored_source_chunk(self):
         existing = {
             "item_id": 42,
@@ -121,6 +177,42 @@ class VectorStorageTests(unittest.TestCase):
         self.assertEqual(pipeline.store.stored, candidates[1:])
         self.assertIn("author_id", db.fetch_query or "")
 
+    def test_pipeline_reindexes_chunk_when_historical_timestamp_changed(self):
+        created_at = datetime(2020, 1, 2, tzinfo=timezone.utc)
+        existing = {
+            "item_id": 42,
+            "source": "review",
+            "source_id": 11,
+            "author_id": 7,
+            "chunk_index": 0,
+            "chunk_hash": "same-text",
+            "created_at": datetime(2026, 1, 2, tzinfo=timezone.utc),
+        }
+        candidate = {**existing, "created_at": created_at}
+        db = _FakeDatabase([existing])
+        pipeline = Pipeline.__new__(Pipeline)
+        pipeline.db = db
+        pipeline.chunker = _ChunkerStub([candidate])
+        pipeline.embedder = _EmbedderStub()
+        pipeline.store = _StoreStub(db)
+
+        calls = 0
+
+        def extract_method(**_kwargs):
+            nonlocal calls
+            calls += 1
+            return [{"text": "unused"}] if calls == 1 else []
+
+        pipeline.process_source(
+            repo_id=1,
+            source_name="Reviews",
+            extract_method=extract_method,
+            dry_run=False,
+        )
+
+        self.assertEqual(pipeline.store.stored, [candidate])
+        self.assertIn("created_at", db.fetch_query or "")
+
     def test_search_sets_hnsw_search_depth_in_the_query_transaction(self):
         class Database(BaseDatabase):
             connection: _FakeConnection
@@ -156,6 +248,7 @@ class VectorStorageTests(unittest.TestCase):
             "embedding_model": "model",
             "chunk_index": 0,
             "chunk_hash": "hash",
+            "created_at": datetime(2020, 1, 2, tzinfo=timezone.utc),
         }])
 
         query = db.query or ""
@@ -166,6 +259,8 @@ class VectorStorageTests(unittest.TestCase):
         self.assertIn("created_at = EXCLUDED.created_at", query)
         rows = db.rows or []
         self.assertEqual(rows[0][5:9], ([0.1, 0.2], "model", 0, "hash"))
+        self.assertEqual(rows[0][9], datetime(2020, 1, 2, tzinfo=timezone.utc))
+        self.assertIn("VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", query)
 
     def test_init_db_reads_the_root_schema_file(self):
         class Connection:

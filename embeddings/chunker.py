@@ -50,6 +50,7 @@ class Chunker:
                     "source": record["source"],
                     "source_id": record["source_id"],
                     "author_id": record["author_id"],
+                    "created_at": record.get("created_at"),
                     "chunk_index": chunk_index,
                     "text": chunk,
                     "chunk_hash": self.compute_hash(chunk),  # Required for ON CONFLICT DO NOTHING

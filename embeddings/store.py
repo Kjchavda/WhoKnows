@@ -23,7 +23,7 @@ class Store:
                 chunk_hash,
                 created_at
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (item_id, source, source_id, author_id, chunk_index)
             DO UPDATE SET
                 text = EXCLUDED.text,
@@ -44,6 +44,7 @@ class Store:
                 record["embedding_model"],
                 record["chunk_index"],
                 record["chunk_hash"],
+                record.get("created_at") # Pull historical timestamp from the pipeline
             )
             for record in records
         ]
