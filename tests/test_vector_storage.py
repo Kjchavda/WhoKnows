@@ -236,6 +236,31 @@ class VectorStorageTests(unittest.TestCase):
         if params is not None:
             self.assertEqual(params[1], 9)
 
+    def test_search_applies_optional_time_and_item_exclusions(self):
+        class Database(BaseDatabase):
+            connection: _FakeConnection
+
+            def run_tx(self, callback):
+                connection = _FakeConnection()
+                self.connection = connection
+                return callback(connection)
+
+        db = Database()
+        as_of = datetime(2020, 1, 2, tzinfo=timezone.utc)
+        SemanticSearch(db, _EmbedderStub()).search(
+            "query",
+            repo_id=9,
+            limit=20,
+            as_of=as_of,
+            exclude_item_ids={41, 42},
+        )
+
+        query, params = db.connection.queries[1]
+        self.assertIn("c.created_at < %s", query)
+        self.assertIn("c.item_id = ANY(%s::bigint[])", query)
+        self.assertEqual(params[1:5], (9, as_of, as_of, [41, 42]))
+        self.assertEqual(params[6], 20)
+
     def test_store_targets_the_schema_unique_index_columns(self):
         db = _FakeDatabase()
         Store(db).store_records([{

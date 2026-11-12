@@ -1,4 +1,7 @@
+from collections.abc import Iterable
+from datetime import datetime
 from typing import Optional
+
 from backend.db import Database
 from embeddings.embedder import Embedder
 
@@ -9,7 +12,14 @@ class SemanticSearch:
         # Safe call: embedder can be passed in, or allowed to auto-initialize
         self.embedder = embedder if embedder is not None else Embedder()
 
-    def search(self, query: str, repo_id: int, limit: int = 10):
+    def search(
+        self,
+        query: str,
+        repo_id: int,
+        limit: int = 10,
+        as_of: datetime | None = None,
+        exclude_item_ids: Iterable[int] = (),
+    ):
         if not query or not query.strip():
             raise ValueError("Search query cannot be empty.")
 
@@ -58,6 +68,8 @@ class SemanticSearch:
             WHERE c.embedding IS NOT NULL
                 AND COALESCE(LOWER(d.type), '') <> 'bot'
                 AND i.repo_id = %s
+                AND (%s::timestamptz IS NULL OR c.created_at < %s)
+                AND NOT (c.item_id = ANY(%s::bigint[]))
 
             ORDER BY c.embedding <=> %s::vector
 
@@ -68,7 +80,15 @@ class SemanticSearch:
             conn.execute("SET LOCAL hnsw.ef_search = 100")
             return conn.execute(
                 sql,
-                (query_embedding, repo_id, query_embedding, limit),
+                (
+                    query_embedding,
+                    repo_id,
+                    as_of,
+                    as_of,
+                    list(exclude_item_ids),
+                    query_embedding,
+                    limit,
+                ),
             ).fetchall()
 
         rows = self.db.run_tx(search_with_oversampling)
