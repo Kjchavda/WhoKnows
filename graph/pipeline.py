@@ -49,7 +49,7 @@ class PipelineResult:
     file_affinity: dict[int, float] = field(default_factory=dict)
 
 
-DEFAULT_PRESET = "legacy-graph"
+DEFAULT_PRESET = "v2-seeds-cand"
 
 PRESETS: dict[str, PipelineConfig] = {
     "semantic": PipelineConfig(

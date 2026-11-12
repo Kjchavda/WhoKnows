@@ -140,7 +140,7 @@ class EvaluationHygieneTests(unittest.TestCase):
             "[0.100, 0.200] | [0.300, 0.400] |",
             report,
         )
-        self.assertIn("`DEFAULT_PRESET` is `legacy-graph`.", report)
+        self.assertIn("`DEFAULT_PRESET` is `v2-seeds-cand`.", report)
 
 
 if __name__ == "__main__":
