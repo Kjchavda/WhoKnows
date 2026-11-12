@@ -263,3 +263,63 @@ def summarize_queries(
             if queries else 0.0
         ),
     }
+
+
+def render_eval_report(summary: dict[str, Any]) -> str:
+    lines = [
+        "# Ranking evaluation results",
+        "",
+        f"- Run date (UTC): {summary['generated_at']}",
+        f"- Repository ID: {summary['repo_id']}",
+        f"- Commit: `{summary['commit']}`",
+        f"- Baseline: `{summary['baseline']}`",
+        f"- Holdout: {summary['holdout']:.0%}",
+        "",
+        "Numbers are **not comparable** to earlier ad-hoc runs because this "
+        "harness now matches the production path (bot filter, `ef_search`, "
+        "and issue self-exclusion).",
+        "",
+        "Metrics are macro-averaged per query. MRR confidence intervals use "
+        "1000 bootstrap resamples with seed 42. Paired intervals compare each "
+        "preset with the baseline on the same queries.",
+        "",
+    ]
+
+    for slice_name, title in (
+        ("overall", "Overall"),
+        ("answerable_only", "Answerable only"),
+    ):
+        lines.extend([
+            f"## {title}",
+            "",
+            "| Preset | Split | Queries | MRR (95% CI) | Paired MRR delta vs baseline (95% CI) | Hit@1 | Hit@3 | Hit@5 | Hit@10 | Candidate recall | Mean candidates |",
+            "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+        ])
+        for preset in summary["presets"]:
+            for split in ("train", "test"):
+                metrics = summary["metrics"][split][preset][slice_name]
+                mrr_ci = metrics["mrr_ci_95"]
+                paired_ci = metrics["paired_mrr_difference_ci_95"]
+                mrr_interval = (
+                    "n/a"
+                    if mrr_ci is None
+                    else f"[{mrr_ci[0]:.3f}, {mrr_ci[1]:.3f}]"
+                )
+                paired_interval = (
+                    "n/a"
+                    if paired_ci is None
+                    else f"[{paired_ci[0]:.3f}, {paired_ci[1]:.3f}]"
+                )
+                lines.append(
+                    f"| {preset} | {split} | {metrics['query_count']} | "
+                    f"{metrics['mrr']:.4f} {mrr_interval} | "
+                    f"{paired_interval} | {metrics['hit_at_1']:.4f} | "
+                    f"{metrics['hit_at_3']:.4f} | "
+                    f"{metrics['hit_at_5']:.4f} | "
+                    f"{metrics['hit_at_10']:.4f} | "
+                    f"{metrics['candidate_recall']:.4f} | "
+                    f"{metrics['mean_candidate_count']:.2f} |"
+                )
+        lines.append("")
+
+    return "\n".join(lines)

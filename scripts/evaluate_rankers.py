@@ -12,6 +12,7 @@ from graph.pipeline import PRESETS, RankingPipeline
 from scripts.eval_common import (
     fetch_evaluation_dataset,
     paired_bootstrap_ci,
+    render_eval_report,
     score_query,
     split_dataset,
     summarize_queries,
@@ -153,6 +154,9 @@ def _write_outputs(
         json.dumps(summary, indent=2, default=str) + "\n",
         encoding="utf-8",
     )
+    report_path = Path("docs") / "EVAL_RESULTS.md"
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(render_eval_report(summary), encoding="utf-8")
 
     csv_path = run_dir / "per_query.csv"
     fieldnames = (
