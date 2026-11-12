@@ -52,9 +52,14 @@ def _history_developers(semantic_rows, builder) -> set[int]:
         if row["author_id"] is not None
     }
     if builder is not None:
+        developer_nodes = (
+            set(builder.graph)
+            | set(builder.authored_affinity)
+            | set(builder.review_affinity)
+        )
         developers.update(
             int(node.removeprefix("dev_"))
-            for node in builder.graph
+            for node in developer_nodes
             if node.startswith("dev_")
         )
     return developers

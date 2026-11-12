@@ -60,16 +60,29 @@ class GraphRanker:
         relevant_files,
         developer_ids,
         retrieved_pr_ids,
-        semantic_scores
+        semantic_scores,
+        file_affinity=None,
     ):
+        relevant_file_nodes = (
+            set(relevant_files)
+            if isinstance(relevant_files, dict)
+            else set(relevant_files)
+        )
         metrics = [
             self.get_developer_metrics(
                 dev_id,
-                relevant_files,
+                relevant_file_nodes,
                 retrieved_pr_ids
             )
             for dev_id in developer_ids
         ]
+
+        if file_affinity is not None:
+            for metric in metrics:
+                metric["coverage"] = file_affinity.get(
+                    metric["developer_id"],
+                    0.0,
+                )
 
         # Semantic scores contain one best similarity per
         # original contribution, grouped by its actual author.
@@ -141,14 +154,19 @@ class PageRankRanker:
         relevant_files,
         developer_ids,
         retrieved_pr_ids,
-        semantic_scores
+        semantic_scores,
+        file_weights=None,
+        seed_mix: float = 0.5,
     ):
+        if not 0.0 <= seed_mix <= 1.0:
+            raise ValueError("seed_mix must be between 0 and 1.")
+
         personalization = {}
-        total_injected = 0.0
 
         for node in self.builder.nx_graph.nodes():
             personalization[node] = 0.0
 
+        developer_weights = {}
         for dev_id in developer_ids:
             dev_node = "dev_" + str(dev_id)
             contributions = semantic_scores.get(dev_id, {})
@@ -160,20 +178,71 @@ class PageRankRanker:
             )
             
             avg_semantic = sum(similarities) / len(similarities) if similarities else 0.0
-            
-            if dev_node in personalization:
-                personalization[dev_node] = avg_semantic
-                total_injected += avg_semantic
+            if dev_node in personalization and avg_semantic > 0:
+                developer_weights[dev_node] = avg_semantic
 
-        if total_injected == 0:
-            for node in self.builder.nx_graph.nodes():
-                personalization[node] = 1.0
+        if file_weights is None:
+            total_injected = sum(developer_weights.values())
+            if total_injected > 0:
+                for node, value in developer_weights.items():
+                    personalization[node] = value / total_injected
+            else:
+                for node in self.builder.nx_graph.nodes():
+                    personalization[node] = 1.0
+        else:
+            if not 0.0 <= seed_mix <= 1.0:
+                raise ValueError("seed_mix must be between 0 and 1.")
+            available_file_weights = {
+                node: weight
+                for node, weight in file_weights.items()
+                if node in personalization and weight > 0
+            }
+            developer_total = sum(developer_weights.values())
+            file_total = sum(available_file_weights.values())
 
-        pr_scores = nx.pagerank(
-            self.builder.nx_graph,
-            alpha=0.85,
-            personalization=personalization
-        )
+            if developer_total > 0 and file_total > 0:
+                developer_mass = 1.0 - seed_mix
+                file_mass = seed_mix
+            elif developer_total > 0:
+                developer_mass = 1.0
+                file_mass = 0.0
+            elif file_total > 0:
+                developer_mass = 0.0
+                file_mass = 1.0
+            else:
+                developer_mass = 0.0
+                file_mass = 0.0
+
+            if developer_total > 0:
+                for node, value in developer_weights.items():
+                    personalization[node] = (
+                        developer_mass * value / developer_total
+                    )
+            if file_total > 0:
+                for node, value in available_file_weights.items():
+                    personalization[node] = file_mass * value / file_total
+            if developer_total == 0 and file_total == 0:
+                for node in self.builder.nx_graph.nodes():
+                    personalization[node] = 1.0
+
+        pagerank_kwargs = {
+            "alpha": 0.85,
+            "personalization": personalization,
+        }
+        if self.builder.weighted:
+            pagerank_kwargs["weight"] = "weight"
+
+        try:
+            pr_scores = nx.pagerank(
+                self.builder.nx_graph,
+                **pagerank_kwargs,
+            )
+        except nx.PowerIterationFailedConvergence:
+            pagerank_kwargs["max_iter"] = 500
+            pr_scores = nx.pagerank(
+                self.builder.nx_graph,
+                **pagerank_kwargs,
+            )
 
         results = []
         retrieved_pr_nodes = {"pr_" + str(pr_id) for pr_id in retrieved_pr_ids}

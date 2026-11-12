@@ -54,6 +54,27 @@ class SearchService:
         if not pipeline_result.ranked:
             return []
 
+        developers_without_evidence = sorted(
+            {
+                row["developer_id"]
+                for row in pipeline_result.ranked
+                if not pipeline_result.evidence.get(row["developer_id"])
+            }
+        )
+        developer_logins = {}
+        if developers_without_evidence:
+            login_rows = self.db.fetch_all(
+                """
+                    SELECT github_id, login
+                    FROM developers
+                    WHERE github_id = ANY(%s::bigint[]);
+                """,
+                (developers_without_evidence,),
+            )
+            developer_logins = {
+                row["github_id"]: row["login"] for row in login_rows
+            }
+
         results = []
 
         for developer in pipeline_result.ranked:
@@ -83,9 +104,28 @@ class SearchService:
             results.append({
                 **developer,
                 "developer_login": (
-                    evidence[0]["developer_login"] if evidence else None
+                    evidence[0]["developer_login"]
+                    if evidence
+                    else developer_logins.get(developer_id)
                 ),
                 "evidence": top_evidence,
+                "signals": {
+                    "semantic_relevance": developer.get(
+                        "semantic_relevance",
+                        0.0,
+                    ),
+                    "coverage": developer.get("coverage", 0.0),
+                    **(
+                        {"historical_depth": developer["historical_depth"]}
+                        if "historical_depth" in developer
+                        else {}
+                    ),
+                    "origin": (
+                        "graph_expansion"
+                        if developer_id in pipeline_result.expansion_ids
+                        else "semantic"
+                    ),
+                },
             })
 
         return results
