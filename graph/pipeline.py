@@ -11,14 +11,14 @@ from graph.builder import Builder
 from graph.candidates import CandidateBuilder
 from graph.config import GraphConfig
 from graph.data_loader import GraphDataLoader
-from graph.ranker import GraphRanker, PageRankRanker
+from graph.ranker import GraphRanker, PageRankRanker, PopularityRanker
 from graph.seeds import SeedExpander, SeedResult
 
 
 @dataclass(frozen=True)
 class PipelineConfig:
     name: str
-    ranker: Literal["semantic", "graph", "pagerank"]
+    ranker: Literal["semantic", "graph", "pagerank", "popularity"]
     graph: GraphConfig
     seed_expansion: bool = False
     candidate_expansion: bool = False
@@ -30,6 +30,7 @@ class PipelineConfig:
     seed_mix: float = 0.5
     holdout: float = 0.3
     bootstrap_resamples: int = 1000
+    popularity_top_n: int = 100
 
     def __post_init__(self) -> None:
         if self.candidate_expansion and not self.seed_expansion:
@@ -55,6 +56,16 @@ PRESETS: dict[str, PipelineConfig] = {
         name="semantic",
         ranker="semantic",
         graph=GraphConfig.legacy(),
+    ),
+    "popularity-all": PipelineConfig(
+        name="popularity-all",
+        ranker="popularity",
+        graph=GraphConfig(weighted=False, half_life_days=None),
+    ),
+    "popularity-recent": PipelineConfig(
+        name="popularity-recent",
+        ranker="popularity",
+        graph=GraphConfig(),
     ),
     "legacy-graph": PipelineConfig(
         name="legacy-graph",
@@ -252,6 +263,20 @@ class RankingPipeline:
             as_of=as_of,
             exclude_item_ids=excluded_ids,
         )
+
+        if config.ranker == "popularity":
+            ranked = PopularityRanker(builder).rank(config.popularity_top_n)
+            candidate_ids = {
+                row["developer_id"]
+                for row in ranked
+            }
+            return PipelineResult(
+                ranked,
+                candidate_ids,
+                semantic_rows,
+                builder,
+                evidence,
+            )
 
         retrieved_pr_ids = {
             row["item_id"]

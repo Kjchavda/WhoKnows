@@ -287,3 +287,31 @@ class PageRankRanker:
             })
 
         return sorted(results, key=lambda r: r["score"], reverse=True)
+
+
+class PopularityRanker:
+    """Evaluation baseline, not a product preset."""
+
+    def __init__(self, builder):
+        self.builder = builder
+
+    def rank(self, top_n: int = 100) -> list[dict]:
+        scores = {}
+        for developer_node in self.builder.nx_graph.nodes():
+            if not developer_node.startswith("dev_"):
+                continue
+            developer_id = int(developer_node.removeprefix("dev_"))
+            scores[developer_id] = sum(
+                float(attributes.get("weight", 1.0))
+                for _, _, attributes in self.builder.nx_graph.out_edges(
+                    developer_node,
+                    data=True,
+                )
+            )
+
+        results = [
+            {"developer_id": developer_id, "score": score}
+            for developer_id, score in scores.items()
+        ]
+        results.sort(key=lambda result: (-result["score"], result["developer_id"]))
+        return results[:max(top_n, 0)]
