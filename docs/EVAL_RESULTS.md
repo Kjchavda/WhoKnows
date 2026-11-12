@@ -1,8 +1,8 @@
 # Ranking evaluation results
 
-- Run date (UTC): 2026-11-12T12:40:25.220413+00:00
+- Run date (UTC): 2026-11-12T12:52:38.690620+00:00
 - Repository ID: 363150
-- Commit: `dc90c50`
+- Commit: `ab273b1`
 - Baseline: `legacy-graph`
 - Holdout: 30%
 
@@ -75,6 +75,6 @@ Metrics are macro-averaged per query. MRR confidence intervals use 1000 bootstra
 | v2-seeds-cand | 0.9139 | 0.9667 | 0.9667 | [0.083, 0.217] | [-0.072, -0.009] |
 | v2-pagerank-seeds-cand | 0.8500 | 0.8500 | 0.9667 | [0.039, 0.127] | [-0.172, -0.038] |
 
-Test-split presets whose paired MRR-difference interval is entirely above zero: `popularity-recent`, `v2-pagerank`, `v2-seeds-cand`, `v2-pagerank-seeds-cand`. These are candidates for owner review, not automatic promotions; `DEFAULT_PRESET` is `legacy-graph`.
+Test-split presets whose paired MRR-difference interval is entirely above zero: `popularity-recent`, `v2-pagerank`, `v2-seeds-cand`, `v2-pagerank-seeds-cand`. These are candidates for owner review, not automatic promotions; `DEFAULT_PRESET` is `v2-seeds-cand`.
 
 Known limitations: `pr_files` reflects each PR's final file set, and the `developers` table has no time dimension.
