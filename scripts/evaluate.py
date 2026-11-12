@@ -1,3 +1,5 @@
+"""Legacy evaluator; use ``python -m scripts.evaluate_rankers`` for comparable results."""
+
 import argparse
 import numpy as np
 from embeddings.embedder import Embedder

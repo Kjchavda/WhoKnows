@@ -1,3 +1,5 @@
+"""Legacy PageRank evaluator; use ``python -m scripts.evaluate_rankers`` for comparisons."""
+
 import os
 import argparse
 import numpy as np

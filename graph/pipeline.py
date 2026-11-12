@@ -99,6 +99,30 @@ class RankingPipeline:
     def __init__(self, db: Database, embedder: Embedder):
         self.semantic_search = SemanticSearch(db, embedder=embedder)
         self.graph_loader = GraphDataLoader(db)
+        self._graph_rows_cache: dict[
+            tuple[int, GraphConfig],
+            tuple[datetime, list[dict[str, Any]]],
+        ] = {}
+
+    def _get_graph_rows(
+        self,
+        repo_id: int,
+        graph_config: GraphConfig,
+        as_of: datetime | None,
+    ) -> list[dict[str, Any]]:
+        if as_of is None:
+            return self.graph_loader.get_graph_data(repo_id)
+
+        key = (repo_id, graph_config)
+        cached = self._graph_rows_cache.get(key)
+        if cached is None or cached[0] != as_of:
+            rows = self.graph_loader.get_graph_data(
+                repo_id,
+                max_timestamp=as_of,
+            )
+            self._graph_rows_cache[key] = (as_of, rows)
+            return rows
+        return cached[1]
 
     def run(
         self,
@@ -123,16 +147,18 @@ class RankingPipeline:
 
         semantic_scores, evidence = aggregate_contributions(semantic_rows)
         candidate_ids = set(semantic_scores)
-        if not semantic_rows or not candidate_ids:
-            return PipelineResult([], candidate_ids, semantic_rows, None, evidence)
-
         if config.ranker == "semantic":
+            if not semantic_rows or not candidate_ids:
+                return PipelineResult(
+                    [], candidate_ids, semantic_rows, None, evidence
+                )
             ranked = SemanticRankerAdapter().rank(semantic_rows)
             return PipelineResult(ranked, candidate_ids, semantic_rows, None, evidence)
 
-        graph_rows = self.graph_loader.get_graph_data(
+        graph_rows = self._get_graph_rows(
             repo_id,
-            max_timestamp=as_of,
+            config.graph,
+            as_of,
         )
         excluded_pr_ids = set(excluded_ids)
         graph_rows = [
