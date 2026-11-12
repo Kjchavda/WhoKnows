@@ -45,26 +45,6 @@ def _selected_presets(value: str | None, baseline: str) -> list[str]:
     return list(dict.fromkeys(requested))
 
 
-def _history_developers(semantic_rows, builder) -> set[int]:
-    developers = {
-        row["author_id"]
-        for row in semantic_rows
-        if row["author_id"] is not None
-    }
-    if builder is not None:
-        developer_nodes = (
-            set(builder.graph)
-            | set(builder.authored_affinity)
-            | set(builder.review_affinity)
-        )
-        developers.update(
-            int(node.removeprefix("dev_"))
-            for node in developer_nodes
-            if node.startswith("dev_")
-        )
-    return developers
-
-
 def _summary_for_split(
     query_results: dict[str, list[dict[str, Any]]],
     split: str,
@@ -243,6 +223,21 @@ def main(argv: list[str] | None = None) -> int:
                     exclude_item_ids=exclude_item_ids,
                 )
 
+                truth = issue["ground_truth"]
+                history_developers = pipeline.history_developers(
+                    args.repo_id,
+                    issue["issue_ts"],
+                    exclude_item_ids,
+                )
+                semantic_developers = {
+                    row["author_id"]
+                    for row in semantic_rows
+                    if row["author_id"] is not None
+                }
+                answerable = bool(
+                    truth.intersection(history_developers | semantic_developers)
+                )
+
                 for preset in presets:
                     config = PRESETS[preset]
                     result = pipeline.run(
@@ -254,11 +249,6 @@ def main(argv: list[str] | None = None) -> int:
                         semantic_rows=semantic_rows,
                         limit=config.semantic_limit,
                     )
-                    truth = issue["ground_truth"]
-                    history_developers = _history_developers(
-                        semantic_rows,
-                        result.builder,
-                    )
                     query_results[preset].append(
                         score_query(
                             issue_number=issue["issue_number"],
@@ -267,7 +257,7 @@ def main(argv: list[str] | None = None) -> int:
                             ],
                             candidate_ids=result.candidate_ids,
                             ground_truth=truth,
-                            answerable=bool(truth.intersection(history_developers)),
+                            answerable=answerable,
                             split=split_name,
                         )
                     )

@@ -168,6 +168,32 @@ class RankingPipeline:
             return rows
         return cached
 
+    def history_developers(
+        self,
+        repo_id: int,
+        as_of: datetime,
+        exclude_item_ids: Iterable[int],
+    ) -> set[int]:
+        config = GraphConfig(
+            exclude_bots=True,
+            merged_only=False,
+            include_reviews=True,
+            weighted=False,
+            half_life_days=None,
+        )
+        builder = Builder()
+        builder.build_graph(
+            self._get_graph_rows(repo_id, config),
+            config=config,
+            as_of=as_of,
+            exclude_item_ids=exclude_item_ids,
+        )
+        return {
+            int(node.removeprefix("dev_"))
+            for node in builder.nx_graph.nodes()
+            if node.startswith("dev_")
+        }
+
     def _expand_seeds(
         self,
         semantic_rows: list[dict[str, Any]],
