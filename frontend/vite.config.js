@@ -7,17 +7,14 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/repositories': {
+      // Single /api prefix avoids SPA route collisions:
+      // /repositories, /search and /auth routes are served by the SPA;
+      // only /api/* is forwarded to FastAPI (the backend strips the prefix
+      // the same way as the reverse proxy in production).
+      '/api': {
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
-      },
-      '/search': {
-        target: 'http://127.0.0.1:8000',
-        changeOrigin: true,
-      },
-      '/auth': {
-        target: 'http://127.0.0.1:8000',
-        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ''),
       },
     },
   },

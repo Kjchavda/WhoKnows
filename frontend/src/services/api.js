@@ -3,15 +3,21 @@
  * Centralizes all HTTP communications with the FastAPI backend.
  */
 
-// Use configured Vite environment variable or fall back to proxy/local origin
-const BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
-const AUTH_BASE_URL = (import.meta.env.VITE_AUTH_BASE_URL || '').replace(/\/+$/, '');
+// Use configured Vite environment variable or fall back to /api prefix (dev proxy or reverse proxy)
+const BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/+$/, '');
+const AUTH_BASE_URL = (import.meta.env.VITE_AUTH_BASE_URL || '/api').replace(/\/+$/, '');
 
 /**
  * Handle API responses and standardized error messages
  */
 async function handleResponse(response) {
   if (!response.ok) {
+    // Rate limit: surface a friendly message regardless of server body
+    if (response.status === 429) {
+      const error = new Error("You're searching too fast. Please wait a moment and try again.");
+      error.status = 429;
+      throw error;
+    }
     let errorMessage = `Request failed with status ${response.status}`;
     try {
       const data = await response.json();

@@ -88,7 +88,7 @@ Use Python 3.11 or newer, PostgreSQL with pgvector, Docker Compose, and Node.js/
    npm run dev
    ```
 
-   [frontend/.env.example](frontend/.env.example) lists the optional `VITE_API_BASE_URL` and `VITE_AUTH_BASE_URL` settings. The Vite development server proxies API routes to the local backend by default.
+   [frontend/.env.example](frontend/.env.example) lists the optional `VITE_API_BASE_URL` and `VITE_AUTH_BASE_URL` settings. The Vite development server proxies `/api/*` to the local backend by default, so the SPA routes (`/repositories`, `/search`, etc.) and API routes do not collide. See [deploy/README.md](deploy/README.md) for production reverse-proxy configuration.
 
    For local HTTP development, set `SESSION_COOKIE_SECURE=false` in the root `.env`; its production-oriented default is `true`.
 

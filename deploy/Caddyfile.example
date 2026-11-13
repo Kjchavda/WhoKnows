@@ -1,0 +1,28 @@
+# WhoKnows — Example Caddy config
+# Serves the React SPA from frontend/dist and proxies /api/* to FastAPI.
+# Adapt the domain and certificate paths to your environment.
+
+{
+  # Optional: global email for automatic TLS via Let's Encrypt
+  # email you@example.com
+}
+
+your-domain.example.com {
+  # Serve the SPA build output
+  root * /var/www/whoknows/frontend/dist
+  file_server
+
+  # SPA fallback: every unknown path serves index.html so deep links work.
+  # Without this, refreshing /repositories or /search?... returns a 404.
+  try_files {path} /index.html
+
+  # API: strip /api prefix before forwarding to FastAPI
+  handle_path /api/* {
+    reverse_proxy localhost:8000
+  }
+
+  # Logging (optional)
+  log {
+    output file /var/log/caddy/whoknows.log
+  }
+}
