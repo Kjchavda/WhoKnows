@@ -33,17 +33,21 @@ export default function SearchBar({
     return (
       <form onSubmit={handleSubmit} className="flex-1 flex items-center gap-space-sm px-space-md py-1.5 bg-surface-container-lowest border border-outline-variant/30 rounded-lg w-full focus-within:border-primary transition-colors">
         <span className="material-symbols-outlined text-outline text-[18px]">search</span>
+        <label htmlFor="search-compact" className="sr-only">Search repository</label>
         <input
+          id="search-compact"
           ref={inputRef}
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={placeholder}
+          aria-label="Search repository"
           className="w-full bg-transparent text-on-surface font-body-md text-body-md focus:outline-none placeholder:text-outline"
         />
         <button
           type="submit"
           disabled={loading || !query.trim()}
+          aria-label="Submit search"
           className="px-2 py-1 rounded bg-primary text-on-primary font-code-sm text-code-sm font-semibold hover:bg-primary-fixed-dim disabled:opacity-50 transition-all shrink-0"
         >
           {loading ? 'Searching...' : 'Search'}
@@ -76,12 +80,15 @@ export default function SearchBar({
               </div>
             </div>
 
+            <label htmlFor="semantic-query" className="sr-only">Search query</label>
             <input
+              id="semantic-query"
               ref={inputRef}
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={placeholder}
+              aria-label="Search repository for expertise"
               className="w-full bg-transparent text-on-surface font-headline-md text-headline-md placeholder:text-outline focus:outline-none tracking-tight py-1"
             />
           </div>
@@ -89,14 +96,9 @@ export default function SearchBar({
 
         {/* Parameters & Submit Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-space-sm pt-space-xs border-t border-surface-container-high/60">
-          <div className="flex flex-wrap items-center gap-space-xs">
-            <span className="font-label-sm text-label-sm px-space-sm py-1 rounded bg-surface-container-lowest text-on-surface-variant flex items-center gap-1 border border-outline-variant/15">
-              <span className="material-symbols-outlined text-[13px] text-secondary">history</span>
-              Decay Half-Life: 180d
-            </span>
-            <span className="font-label-sm text-label-sm px-space-sm py-1 rounded bg-surface-container-lowest text-on-surface-variant flex items-center gap-1 border border-outline-variant/15">
-              <span className="material-symbols-outlined text-[13px] text-tertiary">difference</span>
-              Weights: Semantic (0.4) + Depth (0.35) + Breadth (0.25)
+          <div className="flex flex-wrap items-center gap-space-xs" aria-hidden="true">
+            <span className="font-label-sm text-label-sm px-space-sm py-1 rounded bg-surface-container-lowest text-on-surface-variant border border-outline-variant/15">
+              Search across repository evidence
             </span>
           </div>
 

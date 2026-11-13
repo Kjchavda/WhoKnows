@@ -14,7 +14,7 @@ export default function JobCard({ job }) {
           dotClass: 'bg-amber-400 animate-ping',
           icon: 'refresh',
           iconClass: 'text-amber-400 animate-spin',
-          description: 'Parsing commits, pull requests, and blame graphs...',
+          description: 'Fetching issues, pull requests, comments and reviews...',
         };
       case 'finished':
         return {

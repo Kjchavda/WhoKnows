@@ -9,7 +9,7 @@ import ErrorMessage from '../components/ErrorMessage';
 import { searchRepository } from '../services/api';
 
 export default function Home() {
-  const { selectedRepo, repositories, loadingRepositories, backendHealth } = useRepositories();
+  const { selectedRepo, repositories, loadingRepositories, backendHealth, setIsNewJobModalOpen } = useRepositories();
   const [query, setQuery] = useState('Who understands connection pooling and socket timeout exceptions?');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -69,10 +69,8 @@ export default function Home() {
         <div className="inline-flex items-center gap-space-xs px-space-sm py-1 rounded bg-surface-container text-tertiary border border-outline-variant/20">
           <span className="material-symbols-outlined text-[14px]">psychology</span>
           <span className="font-label-sm text-label-sm uppercase tracking-wider font-semibold">
-            Semantic Developer Knowledge Retrieval
+            Developer knowledge search
           </span>
-          <span className="text-outline-variant font-code-sm text-code-sm ml-1">•</span>
-          <span className="font-code-sm text-code-sm text-outline">v2.4.0-recency-weighted</span>
         </div>
 
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-space-lg w-full">
@@ -81,26 +79,8 @@ export default function Home() {
               Find the people who know your codebase.
             </h1>
             <p className="font-body-lg text-body-lg text-on-surface-variant max-w-2xl">
-              Discover who understands specific architectural components, protocols, and modules through deep analysis of commit history, pull request discussions, and code ownership.
+              Search a repository's issues, pull requests, comments and reviews to find who has worked on a topic.
             </p>
-          </div>
-
-          {/* Telemetry Pill */}
-          <div className="hidden xl:flex items-center gap-space-md p-space-sm rounded-lg bg-surface-container-low border border-outline-variant/20">
-            <div className="flex flex-col text-right">
-              <span className="font-label-sm text-label-sm text-outline uppercase">Index Engine Latency</span>
-              <span className="font-code-sm text-code-sm text-secondary-fixed-dim font-medium">
-                {backendHealth.latencyMs}ms (p95)
-              </span>
-            </div>
-            <div className="h-6 w-px bg-surface-container-high" />
-            <div className="flex items-center gap-space-xs">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-secondary opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-secondary" />
-              </span>
-              <span className="font-label-sm text-label-sm text-on-surface">Embeddings Warm</span>
-            </div>
           </div>
         </div>
       </header>
@@ -112,39 +92,55 @@ export default function Home() {
           <div className="flex items-center gap-space-md flex-wrap">
             <RepositorySelector onSelect={() => setError(null)} />
 
-            <div className="flex items-center gap-space-xs px-space-xs py-0.5 rounded bg-surface-container font-code-sm text-code-sm text-on-surface-variant border border-outline-variant/20">
-              <span className="material-symbols-outlined text-[14px] text-outline">account_tree</span>
-              <span>branch: <span className="text-on-surface font-medium">main</span></span>
-            </div>
-
             <span className="font-code-sm text-code-sm text-outline hidden sm:inline">
               {selectedRepo ? (
-                <>Indexed • Status: <span className="text-secondary font-medium">Ready</span></>
+                <>Repository selected: <span className="text-secondary font-medium">{selectedRepo.owner}/{selectedRepo.name}</span></>
               ) : (
                 <span className="text-amber-400">Please select an indexed repository</span>
               )}
             </span>
           </div>
 
-          <div className="flex items-center gap-space-sm">
-            <div className="flex items-center gap-1.5 px-space-sm py-0.5 rounded bg-surface-container text-outline font-label-sm text-label-sm border border-outline-variant/15">
-              <span className="material-symbols-outlined text-[14px]">tune</span>
-              <span className="text-on-surface-variant">Limit: 100</span>
-              <span className="text-outline-variant">|</span>
-              <span className="text-tertiary">Semantic + Recency</span>
-            </div>
+          <div className="flex items-center gap-1.5 px-space-sm py-0.5 rounded bg-surface-container text-outline font-label-sm text-label-sm border border-outline-variant/15">
+            <span className="material-symbols-outlined text-[14px]">tune</span>
+            <span className="text-on-surface-variant">Limit: 100</span>
           </div>
         </div>
 
+        {repositories.length === 0 && !loadingRepositories && (
+          <div className="rounded-2xl border border-dashed border-outline-variant/50 bg-surface-container-low p-space-lg text-center flex flex-col items-center gap-space-sm">
+            <div className="w-12 h-12 rounded-xl bg-surface-container-high flex items-center justify-center text-primary">
+              <span className="material-symbols-outlined text-[26px]">folder_open</span>
+            </div>
+            <h2 className="font-headline-sm text-headline-sm text-on-surface font-semibold">
+              No repositories yet.
+            </h2>
+            <p className="font-body-md text-body-md text-on-surface-variant max-w-md">
+              Index a public repository that you own to start searching.
+            </p>
+            <button
+              type="button"
+              onClick={() => setIsNewJobModalOpen(true)}
+              className="px-space-md py-2 rounded-lg bg-primary text-on-primary font-body-sm text-body-sm font-semibold shadow-sm"
+            >
+              Add repository
+            </button>
+            <p className="font-label-sm text-label-sm text-outline">
+              Organization repositories can only be indexed by an administrator.
+            </p>
+          </div>
+        )}
+
         {error && <ErrorMessage title="Search Validation" message={error} />}
 
-        {/* Main High-Contrast Search Box Card */}
-        <SearchBar
-          query={query}
-          setQuery={setQuery}
-          onSearch={handleSearch}
-          loading={loading}
-        />
+        {!loadingRepositories && repositories.length > 0 && (
+          <SearchBar
+            query={query}
+            setQuery={setQuery}
+            onSearch={handleSearch}
+            loading={loading}
+          />
+        )}
 
         {/* Suggested Queries Prompt Matrix */}
         <div className="flex flex-col gap-space-xs pt-space-xs">

@@ -49,6 +49,47 @@ class RepositoryService:
             (repo_id,),
         )
 
+    def get_repository_stats(self, repo_id: int):
+        if repo_id <= 0:
+            raise ValueError("Invalid repository ID")
+
+        return self.db.fetch_one(
+            """
+            WITH repo_items AS (
+                SELECT github_id, author_id, repo_id, updated_at
+                FROM items
+                WHERE repo_id = %s
+            ),
+            author_counts AS (
+                SELECT author_id
+                FROM repo_items
+                WHERE author_id IS NOT NULL
+                UNION
+                SELECT c.author_id
+                FROM comments c
+                JOIN items i ON i.github_id = c.item_id
+                WHERE i.repo_id = %s AND c.author_id IS NOT NULL
+                UNION
+                SELECT r.reviewer_id
+                FROM reviews r
+                JOIN items i ON i.github_id = r.item_id
+                WHERE i.repo_id = %s AND r.reviewer_id IS NOT NULL
+                UNION
+                SELECT ch.author_id
+                FROM chunks ch
+                JOIN items i ON i.github_id = ch.item_id
+                WHERE i.repo_id = %s AND ch.author_id IS NOT NULL
+            )
+            SELECT
+                (SELECT COUNT(*) FROM items WHERE repo_id = %s AND kind = 'issue') AS issues,
+                (SELECT COUNT(*) FROM items WHERE repo_id = %s AND kind = 'pr') AS pull_requests,
+                (SELECT COUNT(*) FROM (SELECT DISTINCT author_id FROM author_counts) AS distinct_authors) AS developers,
+                (SELECT COUNT(*) FROM chunks ch JOIN items i ON i.github_id = ch.item_id WHERE i.repo_id = %s) AS chunks,
+                (SELECT MAX(updated_at) FROM items WHERE repo_id = %s) AS last_indexed_at
+            """,
+            (repo_id, repo_id, repo_id, repo_id, repo_id, repo_id, repo_id, repo_id),
+        )
+
     def index_repository(
         self,
         full_name: str,

@@ -53,7 +53,7 @@ export default function Documentation() {
       method: 'GET',
       path: '/repositories/',
       summary: 'List Indexed Repositories',
-      description: 'Returns all GitHub repositories currently indexed in the Neon PostgreSQL database.',
+      description: 'Returns all GitHub repositories currently indexed in the PostgreSQL database.',
       response: `[
   {
     "github_id": 1,
@@ -77,7 +77,7 @@ export default function Documentation() {
       method: 'POST',
       path: '/repositories/index',
       summary: 'Trigger Repository Indexing Job',
-      description: 'Enqueues an asynchronous indexing job to the Redis RQ worker cluster.',
+      description: 'Queues an indexing job for the background worker.',
       request: `{
   "full_name": "redis/redis-py"
 }`,
@@ -105,7 +105,7 @@ export default function Documentation() {
       method: 'POST',
       path: '/search/',
       summary: 'Search Repository & Rank Developers',
-      description: 'Executes cosine similarity retrieval across pgvector chunks and ranks authors via bipartite graph.',
+      description: 'Executes semantic retrieval across indexed chunks and ranks developers using semantic matches and file history.',
       request: `{
   "repo_id": 1,
   "query": "connection pooling and socket timeouts",
@@ -120,12 +120,19 @@ export default function Documentation() {
       "developer_login": "andymccurdy",
       "score": 0.88,
       "semantic_relevance": 0.94,
-      "historical_depth": 0.75,
-      "coverage": 0.42,
+      "semantic_contribution_count": 12,
       "direct_pr_count": 8,
       "historical_related_pr_count": 14,
       "covered_files": 6,
       "total_files": 18,
+      "coverage": 0.42,
+      "historical_depth": 0.75,
+      "signals": {
+        "semantic_relevance": 0.94,
+        "coverage": 0.42,
+        "historical_depth": 0.75,
+        "origin": "semantic"
+      },
       "evidence": [
         {
           "source": "item_body",
@@ -133,7 +140,8 @@ export default function Documentation() {
           "item_number": 1204,
           "item_title": "Refactor ConnectionPool to support non-blocking acquire",
           "similarity": 0.91,
-          "github_url": "https://github.com/redis/redis-py/pull/1204"
+          "github_url": "https://github.com/redis/redis-py/pull/1204",
+          "text": "ConnectionPool should allow non-blocking acquire while the socket waits for data."
         }
       ]
     }
@@ -147,7 +155,7 @@ export default function Documentation() {
       <div className="flex flex-col gap-space-xs">
         <div className="flex items-center gap-space-sm text-outline">
           <span className="font-label-sm text-label-sm uppercase tracking-widest text-secondary font-mono">
-            FastAPI Reference
+            API Reference
           </span>
           <span>/</span>
           <span className="font-code-sm text-code-sm text-outline">REST Endpoints</span>
@@ -156,7 +164,17 @@ export default function Documentation() {
           WhoKnows Architecture & API Reference
         </h1>
         <p className="font-body-md text-body-md text-on-surface-variant max-w-3xl">
-          The WhoKnows engine indexes GitHub codebases into vector embeddings and bipartite knowledge graphs, enabling instant natural language discovery of developer expertise.
+          The WhoKnows engine indexes GitHub codebases into searchable chunks and a developer-file graph to suggest people who have worked on a topic.
+        </p>
+      </div>
+
+      <div className="rounded-xl border border-outline-variant/30 bg-surface-container-low p-space-lg">
+        <h2 className="font-headline-sm text-headline-sm text-on-surface font-semibold mb-space-sm">How ranking works</h2>
+        <p className="font-body-md text-body-md text-on-surface-variant">
+          Ranking combines semantic match on issue and PR text with file history from authored and reviewed pull requests. Recent activity is weighted more heavily, results are suggestions rather than verdicts, and the UI keeps the evidence visible for checks.
+        </p>
+        <p className="font-body-md text-body-md text-on-surface-variant mt-space-sm">
+          On the evaluation repository a simple “most recently active maintainers” baseline performed comparably; see the README for the numbers.
         </p>
       </div>
 

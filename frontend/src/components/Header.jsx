@@ -74,7 +74,7 @@ export default function Header({ setMobileOpen }) {
           className="hidden lg:flex items-center gap-space-xs px-space-md py-1.5 bg-surface-container-lowest border border-outline-variant/20 rounded-lg cursor-pointer hover:bg-surface-container-high transition-colors text-left"
         >
           <span className="material-symbols-outlined text-outline text-[16px]">search</span>
-          <span className="font-body-sm text-body-sm text-outline">Search repo commits, PRs, docs...</span>
+          <span className="font-body-sm text-body-sm text-outline">Search repo issues, PRs, docs...</span>
           <kbd className="font-code-sm text-code-sm ml-space-md px-space-xs py-0.5 bg-surface-container text-on-surface-variant rounded border border-outline-variant/20">
             ⌘K
           </kbd>

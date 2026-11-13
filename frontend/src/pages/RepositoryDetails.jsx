@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useRepositories } from '../context/RepositoryContext';
-import { getRepository, indexRepository } from '../services/api';
+import { getRepository, getRepositoryStats, indexRepository } from '../services/api';
 import ErrorMessage from '../components/ErrorMessage';
 import LoadingState from '../components/LoadingState';
 
@@ -11,7 +11,9 @@ export default function RepositoryDetails() {
   const { setSelectedRepo, addJob } = useRepositories();
 
   const [repo, setRepo] = useState(null);
+  const [repoStats, setRepoStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [reindexing, setReindexing] = useState(false);
   const [reindexAlert, setReindexAlert] = useState(null);
@@ -32,9 +34,24 @@ export default function RepositoryDetails() {
     }
   }, [id]);
 
+  const fetchStats = useCallback(async () => {
+    if (!id) return;
+    setStatsLoading(true);
+    try {
+      const data = await getRepositoryStats(Number(id));
+      setRepoStats(data);
+    } catch (err) {
+      console.warn('Repository stats unavailable:', err);
+      setRepoStats(null);
+    } finally {
+      setStatsLoading(false);
+    }
+  }, [id]);
+
   useEffect(() => {
     fetchRepo();
-  }, [fetchRepo]);
+    fetchStats();
+  }, [fetchRepo, fetchStats]);
 
   const handleSearchCodebase = () => {
     if (repo) {
@@ -100,10 +117,23 @@ export default function RepositoryDetails() {
 
   const fullName = `${repo.owner}/${repo.name}`;
   const githubUrl = `https://github.com/${fullName}`;
+  const statCards = repoStats
+    ? [
+        { label: 'Issues', value: repoStats.issues ?? 0 },
+        { label: 'Pull requests', value: repoStats.pull_requests ?? 0 },
+        { label: 'Developers', value: repoStats.developers ?? 0 },
+        { label: 'Chunks', value: repoStats.chunks ?? 0 },
+        {
+          label: 'Latest activity indexed',
+          value: repoStats.last_indexed_at
+            ? new Date(repoStats.last_indexed_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+            : 'n/a',
+        },
+      ]
+    : [];
 
   return (
     <div className="p-space-lg md:p-space-xl flex flex-col gap-space-xl max-w-7xl mx-auto w-full">
-      {/* Top Breadcrumbs */}
       <div className="flex flex-wrap items-center justify-between gap-space-md">
         <div className="flex items-center gap-space-xs font-label-sm text-label-sm text-outline">
           <button
@@ -125,14 +155,9 @@ export default function RepositoryDetails() {
           <span>
             Repo ID: <span className="text-on-surface font-code-sm text-code-sm">{repo.github_id}</span>
           </span>
-          <span className="mx-space-xs text-surface-variant">•</span>
-          <span>
-            Default Branch: <span className="text-on-surface font-code-sm text-code-sm">main</span>
-          </span>
         </div>
       </div>
 
-      {/* Repository Header / Action Banner */}
       <div className="bg-surface-container-low rounded-xl p-space-lg shadow-sm border border-outline-variant/20 flex flex-col lg:flex-row lg:items-center justify-between gap-space-lg">
         <div className="flex items-start gap-space-md min-w-0">
           <div className="w-12 h-12 rounded-xl bg-surface-container border border-outline-variant/30 flex items-center justify-center text-primary shrink-0 shadow-sm">
@@ -164,17 +189,12 @@ export default function RepositoryDetails() {
               </span>
               <span className="inline-flex items-center gap-1 px-space-sm py-0.5 rounded bg-surface-container font-label-sm text-label-sm text-outline border border-outline-variant/15">
                 <span className="material-symbols-outlined text-[13px]">lock_open</span>
-                Indexed in Neon DB
-              </span>
-              <span className="inline-flex items-center gap-1.5 px-space-sm py-0.5 rounded bg-surface-container text-secondary-fixed font-label-sm text-label-sm border border-outline-variant/15">
-                <span className="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse" />
-                Status: Ready
+                Public repository
               </span>
             </div>
           </div>
         </div>
 
-        {/* Quick Action Controls */}
         <div className="flex items-center gap-space-sm shrink-0 flex-wrap">
           <button
             type="button"
@@ -202,7 +222,6 @@ export default function RepositoryDetails() {
         </div>
       </div>
 
-      {/* Notification Alert for Re-indexing Feedback */}
       {reindexAlert && (
         <div className="bg-surface-container-high p-space-md rounded-xl border border-secondary/30 flex items-center justify-between shadow-sm animate-fade-in">
           <div className="flex items-center gap-space-sm">
@@ -228,7 +247,6 @@ export default function RepositoryDetails() {
         </div>
       )}
 
-      {/* Quick Search Workbench inside Repo Details */}
       <div className="bg-surface-container p-space-lg rounded-xl border border-outline-variant/30 flex flex-col gap-space-md shadow-md">
         <div className="flex items-center gap-space-xs">
           <span className="material-symbols-outlined text-primary text-[20px]">terminal</span>
@@ -241,6 +259,7 @@ export default function RepositoryDetails() {
           <div className="flex-1 flex items-center gap-space-sm px-space-md py-2 bg-surface-container-lowest rounded-lg border border-outline-variant/30 w-full">
             <span className="material-symbols-outlined text-outline text-[18px]">search</span>
             <input
+              aria-label="Query to search within this repository"
               type="text"
               value={quickQuery}
               onChange={(e) => setQuickQuery(e.target.value)}
@@ -261,88 +280,19 @@ export default function RepositoryDetails() {
         </div>
       </div>
 
-      {/* Repository Metadata & Indexing Summary Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-space-lg">
-        {/* Card 1: Index Health & Model */}
-        <div className="bg-surface-container-low rounded-xl p-space-lg flex flex-col justify-between gap-space-md shadow-sm border border-outline-variant/20">
-          <div className="flex flex-col gap-space-xs">
-            <div className="flex items-center justify-between">
-              <span className="font-label-sm text-label-sm uppercase tracking-wider text-outline">
-                Index Health & Pipeline
-              </span>
-              <span className="inline-flex items-center gap-1 px-space-xs py-0.5 rounded bg-surface-container-highest text-secondary-fixed font-code-sm text-code-sm">
-                <span className="material-symbols-outlined text-[13px] text-secondary">check_circle</span>
-                Indexed
-              </span>
-            </div>
-            <span className="font-headline-md text-headline-md text-on-surface font-semibold">
-              Current Indexing Status
-            </span>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-space-lg">
+        {statsLoading && (
+          <div className="md:col-span-2 lg:col-span-3">
+            <LoadingState message="Loading repository metrics..." />
           </div>
+        )}
 
-          <div className="grid grid-cols-2 gap-space-md py-space-sm">
-            <div className="p-space-sm bg-surface-container rounded-lg flex flex-col border border-outline-variant/15">
-              <span className="font-label-sm text-label-sm text-outline">Database Source</span>
-              <span className="font-body-md text-body-md text-on-surface font-medium mt-0.5">Neon PostgreSQL</span>
-              <span className="font-code-sm text-code-sm text-secondary mt-1">pgvector enabled</span>
-            </div>
-            <div className="p-space-sm bg-surface-container rounded-lg flex flex-col border border-outline-variant/15">
-              <span className="font-label-sm text-label-sm text-outline">Graph Engine</span>
-              <span className="font-headline-md text-headline-md text-on-surface font-bold mt-0.5">Active</span>
-              <span className="font-label-sm text-label-sm text-outline mt-1">PRs, commits & blame</span>
-            </div>
+        {!statsLoading && statCards.map((stat) => (
+          <div key={stat.label} className="bg-surface-container-low rounded-xl p-space-lg flex flex-col justify-between gap-space-sm shadow-sm border border-outline-variant/20">
+            <span className="font-label-sm text-label-sm uppercase tracking-wider text-outline">{stat.label}</span>
+            <span className="font-headline-lg text-headline-lg text-on-surface font-semibold break-words">{stat.value}</span>
           </div>
-
-          <div className="flex items-center justify-between p-space-sm bg-surface-container-lowest rounded-lg font-code-sm text-code-sm border border-outline-variant/20">
-            <div className="flex items-center gap-space-sm text-outline truncate">
-              <span className="material-symbols-outlined text-[16px] text-primary">psychology</span>
-              <span className="truncate">all-MiniLM-L6-v2</span>
-            </div>
-            <span className="text-on-surface-variant font-medium shrink-0">384 dimensions</span>
-          </div>
-        </div>
-
-        {/* Card 2: Codebase Scope */}
-        <div className="bg-surface-container-low rounded-xl p-space-lg flex flex-col justify-between gap-space-md shadow-sm border border-outline-variant/20">
-          <div className="flex flex-col gap-space-xs">
-            <div className="flex items-center justify-between">
-              <span className="font-label-sm text-label-sm uppercase tracking-wider text-outline">
-                Knowledge Topology
-              </span>
-              <span className="font-code-sm text-code-sm text-secondary">main branch</span>
-            </div>
-            <span className="font-headline-md text-headline-md text-on-surface font-semibold">
-              Codebase Scope & Topology
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-space-md py-space-sm">
-            <div className="p-space-sm bg-surface-container rounded-lg flex items-center gap-space-sm border border-outline-variant/15">
-              <div className="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center text-secondary shrink-0">
-                <span className="material-symbols-outlined text-[18px]">group</span>
-              </div>
-              <div className="flex flex-col truncate">
-                <span className="font-label-sm text-label-sm text-outline">Domain Authors</span>
-                <span className="font-code-md text-code-md text-on-surface font-semibold truncate">Indexed</span>
-              </div>
-            </div>
-
-            <div className="p-space-sm bg-surface-container rounded-lg flex items-center gap-space-sm border border-outline-variant/15">
-              <div className="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center text-primary shrink-0">
-                <span className="material-symbols-outlined text-[18px]">account_tree</span>
-              </div>
-              <div className="flex flex-col truncate">
-                <span className="font-label-sm text-label-sm text-outline">Implementation Graph</span>
-                <span className="font-code-md text-code-md text-on-surface font-semibold truncate">Connected</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between p-space-sm bg-surface-container-lowest rounded-lg font-code-sm text-code-sm border border-outline-variant/20">
-            <span className="text-outline">Search Endpoint</span>
-            <span className="text-secondary font-mono">POST /search/</span>
-          </div>
-        </div>
+        ))}
       </div>
     </div>
   );

@@ -64,6 +64,33 @@ def get_repository(
     return repository
 
 
+@router.get(
+    "/{repo_id}/stats",
+)
+def get_repository_stats(
+    repo_id: int,
+    request: Request,
+    user: dict = Depends(get_current_user),
+    service: RepositoryService = Depends(get_repository_service),
+):
+    ensure_repo_read(request.app.state.db, repo_id, user)
+    stats = service.get_repository_stats(repo_id)
+
+    if stats is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Repository not found",
+        )
+
+    return {
+        "issues": stats["issues"] or 0,
+        "pull_requests": stats["pull_requests"] or 0,
+        "developers": stats["developers"] or 0,
+        "chunks": stats["chunks"] or 0,
+        "last_indexed_at": stats["last_indexed_at"],
+    }
+
+
 def _active_index_jobs() -> list[Job]:
     jobs = list(indexing_queue.jobs)
     registry = StartedJobRegistry(queue=indexing_queue)

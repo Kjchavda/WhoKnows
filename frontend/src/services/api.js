@@ -207,3 +207,15 @@ export async function checkBackendHealth() {
     };
   }
 }
+
+export async function getRepositoryStats(repoId) {
+  if (!repoId) throw new Error('Repository ID is required');
+  const url = `${BASE_URL}/repositories/${repoId}/stats`;
+  const response = await fetch(url, {
+    credentials: 'include',
+    headers: {
+      'Accept': 'application/json',
+    },
+  });
+  return handleResponse(response);
+}

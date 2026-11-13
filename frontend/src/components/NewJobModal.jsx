@@ -108,7 +108,14 @@ export default function NewJobModal() {
           <div className="flex items-center gap-space-xs text-outline font-body-sm text-body-sm bg-surface-container-lowest/40 p-space-sm rounded-lg border border-outline-variant/15">
             <span className="material-symbols-outlined text-secondary text-[16px] shrink-0">info</span>
             <span>
-              The backend will clone/crawl the repository, chunk pull requests and commits, generate vector embeddings, and construct the blame knowledge graph.
+              You can index public repositories owned by your own GitHub account.
+            </span>
+          </div>
+
+          <div className="flex items-center gap-space-xs text-outline font-body-sm text-body-sm bg-surface-container-lowest/40 p-space-sm rounded-lg border border-outline-variant/15">
+            <span className="material-symbols-outlined text-secondary text-[16px] shrink-0">info</span>
+            <span>
+              The backend will fetch the repository's issues, pull requests, comments, reviews and changed files, embed the text, and build a developer-file graph.
             </span>
           </div>
 

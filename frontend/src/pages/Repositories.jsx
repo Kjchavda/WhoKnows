@@ -84,7 +84,7 @@ export default function Repositories() {
               Repositories & Codebase Indexing
             </h1>
             <p className="font-body-md text-body-md text-on-surface-variant max-w-3xl">
-              Manage connected GitHub repositories. WhoKnows parses commit logs, PR discussions, and blame trees into semantic knowledge vectors.
+              Manage the GitHub repositories WhoKnows has indexed.
             </p>
           </div>
 

@@ -148,14 +148,14 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
                   backendHealth.healthy ? 'bg-secondary animate-pulse' : 'bg-error'
                 }`}
               ></span>
-              <span className="font-label-sm text-label-sm text-outline">FastAPI Backend</span>
+              <span className="font-label-sm text-label-sm text-outline">API online</span>
             </div>
             <span
               className={`font-code-sm text-code-sm ${
                 backendHealth.healthy ? 'text-secondary-fixed-dim' : 'text-error'
               }`}
             >
-              {backendHealth.healthy ? `${backendHealth.latencyMs}ms` : 'Offline'}
+              {backendHealth.healthy ? 'online' : 'offline'}
             </span>
           </div>
 
