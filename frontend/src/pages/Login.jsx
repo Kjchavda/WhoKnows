@@ -1,11 +1,21 @@
-import React from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { Link, useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function Login() {
   const { user, loadingUser, authError, signInWithGitHub } = useAuth();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
   const authorizationError = searchParams.get('error');
+
+  // If already signed in, go back to where the user came from
+  useEffect(() => {
+    if (!loadingUser && user) {
+      const from = location.state?.from?.pathname || '/';
+      navigate(from, { replace: true });
+    }
+  }, [user, loadingUser, navigate, location.state]);
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-surface-container-lowest px-space-md py-space-xl">
@@ -62,14 +72,7 @@ export default function Login() {
           <span>Continue with GitHub</span>
         </button>
 
-        {!loadingUser && user && (
-          <Link
-            to="/"
-            className="mt-space-sm block text-center font-body-sm text-body-sm text-secondary hover:underline"
-          >
-            Already signed in as @{user.username}? Continue to the app
-          </Link>
-        )}
+        {!loadingUser && user && null}
 
         <p className="mt-space-lg border-t border-surface-container-high pt-space-md font-label-sm text-label-sm text-outline">
           Sign-in uses GitHub OAuth. WhoKnows requests access to your public

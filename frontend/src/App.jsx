@@ -8,6 +8,7 @@ import {
 } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { RepositoryProvider } from './context/RepositoryContext';
+import RequireAuth from './components/RequireAuth';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import NewJobModal from './components/NewJobModal';
@@ -41,19 +42,21 @@ export default function App() {
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
-          <Route
-            element={
-              <RepositoryProvider>
-                <AppLayout />
-              </RepositoryProvider>
-            }
-          >
-            <Route path="/" element={<Home />} />
-            <Route path="/search" element={<SearchResults />} />
-            <Route path="/repositories" element={<Repositories />} />
-            <Route path="/repositories/:id" element={<RepositoryDetails />} />
-            <Route path="/jobs" element={<Repositories />} />
-            <Route path="/docs" element={<Documentation />} />
+          <Route element={<RequireAuth />}>
+            <Route
+              element={
+                <RepositoryProvider>
+                  <AppLayout />
+                </RepositoryProvider>
+              }
+            >
+              <Route path="/" element={<Home />} />
+              <Route path="/search" element={<SearchResults />} />
+              <Route path="/repositories" element={<Repositories />} />
+              <Route path="/repositories/:id" element={<RepositoryDetails />} />
+              <Route path="/jobs" element={<Repositories />} />
+              <Route path="/docs" element={<Documentation />} />
+            </Route>
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
